@@ -1,0 +1,19 @@
+{
+  "chunk_size": 800,
+  "chunk_overlap": 100,
+  "top_k": 15,
+  "embedding_provider": "讯飞",
+  "embedding_model": "Qwen3-Embedding-8B",
+  "rerank_enabled": true,
+  "rerank_model": "Qwen3-Reranker-0.6B",
+  "rerank_top_k": 10,
+  "vector_store": "faiss",
+  "ui_theme": "fluent_dark",
+  "sidebar_width": 320,
+  "max_upload_size_mb": 100,
+  "supported_extensions": [
+    ".pdf"
+  ],
+  "auto_index": true,
+  "watch_interval_seconds": 30
+}

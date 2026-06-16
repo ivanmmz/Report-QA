@@ -1,0 +1,33 @@
+{
+  "providers": {
+    "deepseek-v4": {
+      "api_key": "sk-F5PFPaPgMbwgycqavOX5BsChs0QezGmjctDMu6G9dqx23kDVdZasF1jgzvmbrKCi",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "models": [
+        "kimi-k2.7",
+        "kimi-k2.6",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash"
+      ],
+      "description": ""
+    },
+    "讯飞": {
+      "api_key": "70c2b388f9b26a4b6c5f68309623d74b:MjhmNzNiMTJjNmQ3ZGVmZmJhZWE0Mzc0",
+      "base_url": "https://maas-api.cn-huabei-1.xf-yun.com/v2/embeddings",
+      "models": [
+        "Qwen3-Embedding-8B"
+      ],
+      "description": ""
+    },
+    "魔力": {
+      "api_key": "IOJFL5ONLRANNO40KQ52UTXA3JMRUZ155POIDJM9",
+      "base_url": "https://ai.gitee.com/v1",
+      "models": [
+        "Qwen3-Reranker-0.6B"
+      ],
+      "description": ""
+    }
+  },
+  "default_provider": "deepseek-v4",
+  "default_model": "deepseek-v4-flash"
+}

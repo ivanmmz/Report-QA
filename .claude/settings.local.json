@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(timeout 5 python -m streamlit run app.py --server.headless true --server.port 8503)",
+      "Bash(cmd.exe /c \"run.cmd\")",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(python -m streamlit run app.py --server.headless true --server.port 8501)",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('PORT 8501:', 'IN USE' if r==0 else 'FREE'\\)\")",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8502\\)\\); s.close\\(\\); print\\('PORT 8502:', 'IN USE' if r==0 else 'FREE'\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('8501 port:', 'IN USE' if r==0 else 'FREE'\\)\")",
+      "Bash(taskkill /F /PID 11104)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(python -c \"import subprocess; r=subprocess.run\\(['netstat','-ano'],capture_output=True,text=True\\); [print\\(l\\) for l in r.stdout.split\\(chr\\(10\\)\\) if '8501' in l and 'LISTENING' in l]\")",
+      "Bash(/c/Windows/System32/taskkill.exe /F /PID 11104)",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('8501:', 'IN USE' if r==0 else 'FREE'\\)\")",
+      "Bash(\"C:/Windows/System32/taskkill.exe\" /F /PID 11104)",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('8501:','IN USE' if r==0 else 'FREE'\\)\")",
+      "Bash(cmd.exe /c \"taskkill /F /PID 11104\")",
+      "Bash(/c/Windows/System32/cmd.exe /c \"taskkill /F /PID 11104\")",
+      "Bash(wmic process *)",
+      "Bash(python -m streamlit run app.py)",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('Streamlit running:', 'YES' if r==0 else 'NO'\\)\")",
+      "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('Running:', 'YES' if r==0 else 'NO'\\)\")",
+      "WebSearch"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rag-system",
+      "runtimeExecutable": "C:/Users/Ivan/Desktop/Report QA/windows-rag-system/venv/Scripts/python.exe",
+      "runtimeArgs": ["C:/Users/Ivan/Desktop/Report QA/launch_app.py"],
+      "autoPort": true,
+      "port": 8501
+    }
+  ]
+}
