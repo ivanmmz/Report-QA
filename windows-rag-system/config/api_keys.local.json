@@ -11,23 +11,47 @@
       ],
       "description": ""
     },
-    "讯飞": {
-      "api_key": "70c2b388f9b26a4b6c5f68309623d74b:MjhmNzNiMTJjNmQ3ZGVmZmJhZWE0Mzc0",
-      "base_url": "https://maas-api.cn-huabei-1.xf-yun.com/v2/embeddings",
-      "models": [
-        "Qwen3-Embedding-8B"
-      ],
-      "description": ""
-    },
     "魔力": {
       "api_key": "IOJFL5ONLRANNO40KQ52UTXA3JMRUZ155POIDJM9",
       "base_url": "https://ai.gitee.com/v1",
       "models": [
-        "Qwen3-Reranker-0.6B"
+        "Qwen3-Reranker-0.6B",
+        "Qwen3-Embedding-8B",
+        "bge-m3"
       ],
+      "description": ""
+    },
+    "Opencode go": {
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "models": [
+        "glm-5.1",
+        "glm-5",
+        "kimi-k2.7",
+        "kimi-k2.6",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
+        "mimo-v2.5",
+        "mimo-v2.5-pro",
+        "minimax-m3",
+        "minimax-m2.7",
+        "minimax-m2.5",
+        "qwen3.7-max",
+        "qwen3.7-plus",
+        "qwen3.6-plus"
+      ],
+      "api_key": "sk-F5PFPaPgMbwgycqavOX5BsChs0QezGmjctDMu6G9dqx23kDVdZasF1jgzvmbrKCi",
+      "description": ""
+    },
+    "LMstudio": {
+      "base_url": "http://127.0.0.1:1234/v1",
+      "models": [
+        "text-embedding-embeddinggemma-300m-qat",
+        "text-embedding-qwen3-embedding-0.6b"
+      ],
+      "api_key": "111",
       "description": ""
     }
   },
-  "default_provider": "deepseek-v4",
-  "default_model": "deepseek-v4-flash"
+  "default_provider": "Opencode go",
+  "default_model": "mimo-v2.5"
 }

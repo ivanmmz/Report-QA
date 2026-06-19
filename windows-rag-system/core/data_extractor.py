@@ -54,11 +54,17 @@ class DataExtractor:
     ]
 
     METRIC_KEYWORDS = [
+        # English terms
         "COP", "efficiency", "power", "consumption", "energy", "cost",
         "temperature", "pressure", "flow", "capacity", "load", "output",
         "input", "savings", "reduction", "increase", "decrease", "change",
         "performance", "rating", "index", "score", "level", "amount",
         "percentage", "ratio", "rate", "factor", "coefficient",
+        # Chinese terms for HVAC/chiller efficiency reports
+        "效率", "能效", "性能系数", "能耗", "功率", "温度",
+        "流量", "压力", "容量", "负荷", "输出", "输入",
+        "节能", "降低", "提高", "变化", "性能", "系数",
+        "电耗", "水耗", "冷量", "热量", "能效比",
     ]
 
     def __init__(self):

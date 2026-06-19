@@ -1,0 +1,19 @@
+{
+  "chunk_size": 6000,
+  "chunk_overlap": 1000,
+  "top_k": 25,
+  "embedding_provider": "魔力",
+  "embedding_model": "Qwen3-Embedding-8B",
+  "rerank_enabled": true,
+  "rerank_model": "text-embedding-qwen3-embedding-0.6b",
+  "rerank_top_k": 10,
+  "vector_store": "faiss",
+  "ui_theme": "fluent_dark",
+  "sidebar_width": 320,
+  "max_upload_size_mb": 100,
+  "supported_extensions": [
+    ".pdf"
+  ],
+  "auto_index": true,
+  "watch_interval_seconds": 30
+}

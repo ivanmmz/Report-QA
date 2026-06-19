@@ -4,9 +4,9 @@
     {
       "name": "rag-system",
       "runtimeExecutable": "C:/Users/Ivan/Desktop/Report QA/windows-rag-system/venv/Scripts/python.exe",
-      "runtimeArgs": ["C:/Users/Ivan/Desktop/Report QA/launch_app.py"],
-      "autoPort": true,
-      "port": 8501
+      "runtimeArgs": ["-m", "streamlit", "run", "C:/Users/Ivan/Desktop/Report QA/windows-rag-system/app.py", "--server.port", "8502"],
+      "autoPort": false,
+      "port": 8502
     }
   ]
 }

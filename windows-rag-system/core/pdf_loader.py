@@ -116,23 +116,55 @@ def _extract_page_tables(page) -> List[str]:
 
 
 def _format_table_rows(rows: List[List[str]]) -> str:
-    """Format table rows as a readable text block.
+    """Format table rows as a readable text block with column headers preserved.
+
+    Preserves the header row as a labeled structure so downstream processing
+    can associate values with their column names.
+
+    Returns empty string if the table contains no actual data rows, so that
+    the caller can safely skip empty/header-only tables.
 
     Args:
         rows: List of rows, each row is a list of cell strings.
 
     Returns:
-        Formatted table string.
+        Formatted table string with column labels, or empty string if no data.
     """
     if not rows:
         return ""
 
+    header = rows[0]
     lines = []
-    for row in rows:
-        # Clean cells and join with pipe
+    data_lines = []
+
+    # Emit column index labels for structured access
+    col_labels = []
+    for i, cell in enumerate(header):
+        label = str(cell).strip() if cell else f"COL_{i}"
+        col_labels.append(label)
+
+    # Format each data row with column context
+    for row in rows[1:]:
         cells = [str(cell).strip() if cell else "" for cell in row]
         if any(cells):  # Skip completely empty rows
-            lines.append(" | ".join(cells))
+            labeled_cells = []
+            for i, cell in enumerate(cells):
+                if cell and i < len(col_labels):
+                    labeled_cells.append(f"{col_labels[i]}: {cell}")
+                elif cell:
+                    labeled_cells.append(cell)
+            data_lines.append(" | ".join(labeled_cells))
+
+    # Only return a formatted table if there are actual data rows.
+    # A table with ONLY a header and no data rows is useless and causes
+    # empty chunks in the vector store.
+    if not data_lines:
+        return ""
+
+    lines.append("COLUMNS: " + " | ".join(col_labels))
+    lines.append("---")
+    lines.extend(data_lines)
+
     return "\n".join(lines)
 
 
@@ -171,11 +203,14 @@ def load_pdf(path: str | Path) -> PDFDocument:
             text_parts.append(reconstructed)
 
     # Merge text and table content
-    # If tables were found, prepend them as structured data
+    # Only include TABLE DATA section if tables have actual meaningful content.
+    # Filter out any empty table strings (header-only tables with no data rows)
+    # to prevent polluting the vector store with near-empty chunks.
+    non_empty_tables = [t for t in table_parts if t and t.strip()]
     full_parts = []
-    if table_parts:
+    if non_empty_tables:
         full_parts.append("=== TABLE DATA ===")
-        full_parts.extend(table_parts)
+        full_parts.extend(non_empty_tables)
         full_parts.append("=== DOCUMENT TEXT ===")
     full_parts.extend(text_parts)
 

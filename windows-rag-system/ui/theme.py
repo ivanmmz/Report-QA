@@ -2,371 +2,384 @@
 import streamlit as st
 
 
-MINIMAL_CSS = """
+def theme_css(is_dark: bool) -> str:
+    """Return full CSS block for the current theme with CSS variables."""
+    if is_dark:
+        bg0 = "#0f1117"
+        bg1 = "#1a1d2e"
+        bg2 = "rgba(255,255,255,0.03)"
+        text0 = "#e4e6eb"
+        text1 = "rgba(255,255,255,0.7)"
+        text2 = "rgba(255,255,255,0.35)"
+        border = "rgba(255,255,255,0.08)"
+        border_hover = "rgba(0,188,242,0.3)"
+        accent = "#00bcf2"
+        accent_bg = "rgba(0,120,212,0.08)"
+        card_bg = "rgba(255,255,255,0.03)"
+        card_hover = "rgba(255,255,255,0.05)"
+        input_bg = "rgba(255,255,255,0.03)"
+        sidebar_bg = "rgba(16,18,27,0.95)"
+        gradient = "linear-gradient(135deg, #0f1117 0%, #1a1d2e 50%, #0f1117 100%)"
+    else:
+        bg0 = "#f8f9fa"
+        bg1 = "#ffffff"
+        bg2 = "rgba(0,0,0,0.02)"
+        text0 = "#1a1a2e"
+        text1 = "rgba(0,0,0,0.7)"
+        text2 = "rgba(0,0,0,0.4)"
+        border = "rgba(0,0,0,0.1)"
+        border_hover = "rgba(0,100,200,0.3)"
+        accent = "#0066cc"
+        accent_bg = "rgba(0,100,200,0.06)"
+        card_bg = "rgba(0,0,0,0.02)"
+        card_hover = "rgba(0,0,0,0.04)"
+        input_bg = "rgba(255,255,255,0.8)"
+        sidebar_bg = "rgba(255,255,255,0.97)"
+        gradient = "linear-gradient(135deg, #f0f2f5 0%, #ffffff 50%, #f0f2f5 100%)"
+
+    return f"""
 <style>
-    /* Main app background */
-    .stApp {
-        background: linear-gradient(135deg, #0f1117 0%, #1a1d2e 50%, #0f1117 100%);
-        color: #e4e6eb;
-    }
+    :root, .stApp {{
+        --bg0: {bg0};
+        --bg1: {bg1};
+        --bg2: {bg2};
+        --text0: {text0};
+        --text1: {text1};
+        --text2: {text2};
+        --border: {border};
+        --border-hover: {border_hover};
+        --accent: {accent};
+        --accent-bg: {accent_bg};
+        --card-bg: {card_bg};
+        --card-hover: {card_hover};
+        --input-bg: {input_bg};
+        --sidebar-bg: {sidebar_bg};
+    }}
 
-    /* Sidebar styling - minimal */
-    [data-testid="stSidebar"] {
-        background: rgba(16, 18, 27, 0.95);
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
-        min-width: 280px !important;
-        max-width: 280px !important;
-    }
-
-    [data-testid="stSidebar"] .stMarkdown {
-        color: #e4e6eb;
-    }
-
-    /* Hide sidebar collapse button */
-    button[kind="header"] {
+    .stApp {{
+        background: {gradient};
+        color: {text0};
+    }}
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarCollapseButton"],
+    button[data-testid="stSidebarCollapseButton"],
+    .stSidebar {{
         display: none !important;
-    }
+    }}
 
-    /* Navigation buttons - large and minimal */
-    .nav-btn {
-        display: block;
-        width: 100%;
-        padding: 14px 20px;
-        margin: 6px 0;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        color: #e4e6eb;
-        font-size: 1.1em;
-        font-weight: 500;
-        text-align: left;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        text-decoration: none;
-    }
+    [data-testid="stHeader"] {{ display: none !important; }}
+    button[kind="header"] {{ display: none !important; }}
+    header[data-testid="stHeader"] {{ display: none !important; }}
 
-    .nav-btn:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(0, 188, 242, 0.3);
-        transform: translateX(4px);
-    }
+    /* Sidebar layout to push bottom items down */
+    [data-testid="stSidebarUserContent"] {{
+        height: 100% !important;
+        padding-top: 20px !important;
+    }}
+    [data-testid="stSidebarUserContent"] > div[data-testid="stVerticalBlock"] {{
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }}
+    div[class*="st-key-sidebar_bottom"] {{
+        margin-top: auto !important;
+        padding-top: 20px !important;
+    }}
 
-    .nav-btn.active {
-        background: linear-gradient(135deg, rgba(0, 120, 212, 0.2), rgba(0, 188, 242, 0.15));
-        border-color: rgba(0, 188, 242, 0.4);
-        color: #00bcf2;
-        font-weight: 600;
-    }
+    /* Main block container padding reduction to align with Copilot and sidebar */
+    [data-testid="stMainBlockContainer"] {{
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+        padding-left: 20px !important;
+    }}
 
-    .nav-btn .icon {
-        font-size: 1.3em;
-        margin-right: 12px;
-        display: inline-block;
-        width: 28px;
-        text-align: center;
-    }
+    /* Ensure h1 titles start with zero margin at the top */
+    h1 {{
+        color: {text0};
+        font-weight: 700;
+        font-size: 1.8em;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+        margin-bottom: 24px;
+    }}
 
-    /* Cards - minimal */
-    .card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 20px;
-        margin: 8px 0;
-        transition: all 0.2s ease;
-    }
+    /* Theme toggle in sidebar - always visible in both modes */
+    [data-testid="stSidebar"] [data-testid="stBaseButton-label"] {{
+        color: {text0} !important;
+        font-weight: 500 !important;
+    }}
 
-    .card:hover {
-        background: rgba(255, 255, 255, 0.05);
-        border-color: rgba(255, 255, 255, 0.1);
-    }
-
-    /* Accent cards */
-    .accent-card {
-        background: linear-gradient(135deg, rgba(0, 120, 212, 0.12), rgba(0, 188, 242, 0.08));
-        border: 1px solid rgba(0, 188, 242, 0.2);
-        border-radius: 12px;
-        padding: 20px;
-        margin: 8px 0;
-    }
-
-    /* Status bar - minimal */
-    .status-bar {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.02);
-        border-radius: 8px;
-        margin: 4px 0;
-    }
-
-    .status-bar .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-
-    .status-bar .status-dot.ready {
-        background: #00cc6a;
-        box-shadow: 0 0 6px rgba(0, 204, 106, 0.4);
-    }
-
-    .status-bar .status-dot.warning {
-        background: #ffb800;
-        box-shadow: 0 0 6px rgba(255, 184, 0, 0.4);
-    }
-
-    .status-bar .status-dot.error {
-        background: #ff4343;
-        box-shadow: 0 0 6px rgba(255, 67, 67, 0.4);
-    }
-
-    .status-bar .status-text {
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 0.9em;
-    }
-
-    .status-bar .status-value {
-        color: #e4e6eb;
-        font-weight: 600;
-        margin-left: auto;
-    }
-
-    /* Buttons */
-    .stButton > button {
-        background: rgba(0, 120, 212, 0.8);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 24px;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
-
-    .stButton > button:hover {
-        background: rgba(0, 120, 212, 1);
+    .stButton > button,
+    .stPopover > button,
+    div[data-testid="stPopover"] button {{
+        background: #0078d4 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 10px 24px !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+    }}
+    .stButton > button:hover,
+    .stPopover > button:hover,
+    div[data-testid="stPopover"] button:hover {{
+        background: #005a9e !important;
+        color: white !important;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3);
-    }
-
-    .stButton > button:active {
+    }}
+    .stButton > button:active,
+    .stPopover > button:active,
+    div[data-testid="stPopover"] button:active {{
         transform: translateY(0);
-    }
+    }}
 
-    /* Secondary buttons */
-    .stButton > button[kind="secondary"] {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-    }
+    /* Target direct child labels of popover button to guarantee white text on blue background */
+    div[data-testid="stPopover"] button p,
+    div[data-testid="stPopover"] button span {{
+        color: white !important;
+    }}
 
-    .stButton > button[kind="secondary"]:hover {
-        background: rgba(255, 255, 255, 0.1);
-    }
+    /* Target sidebar widget labels and text in all modes to match theme colors */
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+    [data-testid="stSidebar"] .stMarkdown p {{
+        color: {text0} !important;
+        font-weight: 500 !important;
+    }}
 
-    /* Text inputs */
-    .stTextInput > div > div > input {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+    .stTextInput > div > div > input {{
+        background: {input_bg};
+        border: 1px solid {border};
         border-radius: 8px;
-        color: #e4e6eb;
+        color: {text0};
         padding: 10px 14px;
-    }
+    }}
+    .stTextInput > div > div > input:focus {{ border-color: rgba(0, 188, 242, 0.5); }}
 
-    .stTextInput > div > div > input:focus {
-        border-color: rgba(0, 188, 242, 0.5);
-    }
-
-    /* Text area */
-    .stTextArea > div > div > textarea {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+    .stTextArea > div > div > textarea {{
+        background: {input_bg};
+        border: 1px solid {border};
         border-radius: 8px;
-        color: #e4e6eb;
-    }
+        color: {text0};
+    }}
 
-    /* Chat messages */
-    .chat-message {
-        background: rgba(255, 255, 255, 0.03);
+    .chat-message {{
+        background: {bg2};
         border-radius: 12px;
         padding: 16px;
         margin: 8px 0;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .chat-message.user {
-        background: rgba(0, 120, 212, 0.08);
+        border: 1px solid {border};
+    }}
+    .chat-message.user {{
+        background: {accent_bg};
         border-color: rgba(0, 120, 212, 0.2);
-    }
+    }}
 
-    /* File uploader */
-    .stFileUploader > div {
-        background: rgba(255, 255, 255, 0.02);
-        border: 2px dashed rgba(255, 255, 255, 0.1);
+    .stFileUploader > div {{
+        background: {bg2};
+        border: 2px dashed {border};
         border-radius: 12px;
         padding: 32px;
-    }
+    }}
 
-    .stFileUploader > div:hover {
-        border-color: rgba(0, 188, 242, 0.4);
-        background: rgba(0, 188, 242, 0.03);
-    }
+    h1 {{ color: {text0}; font-weight: 700; font-size: 1.8em; margin-bottom: 24px; }}
+    h2, h3 {{ color: {text0}; font-weight: 600; margin-top: 24px; margin-bottom: 12px; }}
 
-    /* Headers */
-    h1 {
-        color: #ffffff;
-        font-weight: 700;
-        font-size: 1.8em;
-        margin-bottom: 24px;
-    }
+    ::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+    ::-webkit-scrollbar-track {{ background: {bg2}; }}
+    ::-webkit-scrollbar-thumb {{ background: rgba(128,128,128,0.2); border-radius: 3px; }}
 
-    h2, h3 {
-        color: #e4e6eb;
-        font-weight: 600;
-        margin-top: 24px;
-        margin-bottom: 12px;
-    }
-
-    /* Citation badges */
-    .citation {
-        display: inline-block;
-        background: rgba(0, 120, 212, 0.2);
-        color: #00bcf2;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.85em;
-        font-weight: 600;
-        margin: 0 2px;
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.02);
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 3px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.2);
-    }
-
-    /* Source list */
-    .source-item {
-        background: rgba(255, 255, 255, 0.02);
-        border-left: 3px solid rgba(0, 120, 212, 0.6);
-        border-radius: 0 8px 8px 0;
-        padding: 12px 16px;
-        margin: 6px 0;
-        font-size: 0.9em;
-    }
-
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: rgba(255, 255, 255, 0.02) !important;
-        border-radius: 8px !important;
-        border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    }
-
-    /* Selectbox */
-    .stSelectbox > div > div {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+    .stSelectbox > div > div {{
+        background: {input_bg};
+        border: 1px solid {border};
         border-radius: 8px;
-    }
+    }}
 
-    /* Tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        background: rgba(255, 255, 255, 0.02);
+    .stTabs [data-baseweb="tab-list"] {{
+        background: {bg2};
         border-radius: 10px;
         padding: 4px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 6px;
-        padding: 8px 16px;
-    }
-
-    .stTabs [aria-selected="true"] {
+    }}
+    .stTabs [data-baseweb="tab"] {{ border-radius: 6px; padding: 8px 16px; }}
+    .stTabs [aria-selected="true"] {{
         background: rgba(0, 120, 212, 0.15);
-        color: #00bcf2;
-    }
+        color: {accent};
+    }}
 
-    /* Divider */
-    .minimal-divider {
-        border: none;
-        height: 1px;
-        background: rgba(255, 255, 255, 0.06);
-        margin: 16px 0;
-    }
+    /* Popover and Dialog overlays - inherit theme */
+    [data-testid="stPopoverBody"],
+    [data-testid="stPopoverBody"] [data-testid="stVerticalBlock"] {{
+        background: {bg1} !important;
+        color: {text0} !important;
+    }}
+    [data-testid="stPopoverBody"] h1,
+    [data-testid="stPopoverBody"] h2,
+    [data-testid="stPopoverBody"] h3,
+    [data-testid="stPopoverBody"] h4,
+    [data-testid="stPopoverBody"] h5,
+    [data-testid="stPopoverBody"] h6 {{
+        color: {text0} !important;
+    }}
+    [data-testid="stPopoverBody"] .stMarkdown,
+    [data-testid="stPopoverBody"] p {{
+        color: {text0} !important;
+    }}
+    [data-testid="stPopoverBody"] hr {{
+        border-color: {border} !important;
+    }}
 
-    /* Compact metrics */
-    .compact-metrics {
-        display: flex;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
+    /* Dialog/modal overlay */
+    [data-testid="stDialog"] {{
+        background: rgba(0,0,0,0.4) !important;
+    }}
+    [data-testid="stDialog"] [data-testid="stVerticalBlock"] {{
+        background: {bg1} !important;
+        color: {text0} !important;
+    }}
+    [data-testid="stDialog"] h1,
+    [data-testid="stDialog"] h2,
+    [data-testid="stDialog"] h3,
+    [data-testid="stDialog"] h4 {{
+        color: {text0} !important;
+    }}
 
-    .compact-metric {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+    /* Streamlit info/warning/error/success boxes - use theme */
+    .stAlert {{
+        color: {text0} !important;
+    }}
+
+    .minimal-divider {{ border: none; height: 1px; background: {border}; margin: 16px 0; }}
+
+    .chat-actions-label {{ font-size: 0.78em; color: {text2}; }}
+
+    /* Copy message button */
+    .msg-copy-btn {{
+        display: inline-flex; align-items: center; justify-content: center;
+        background: transparent; border: none; cursor: pointer;
+        font-size: 0.7em; padding: 2px 5px; border-radius: 4px;
+        color: {text2}; transition: all 0.15s ease; line-height: 1; opacity: 0;
+    }}
+    [data-testid="stChatMessage"]:hover .msg-copy-btn {{ opacity: 0.6; }}
+    .msg-copy-btn:hover {{
+        background: rgba(128,128,128,0.15); color: {text0}; opacity: 1 !important;
+    }}
+
+    /* Preset buttons */
+    .preset-btn {{
+        background: {bg2}; border: 1px solid {border}; border-radius: 6px;
+        padding: 4px 10px; font-size: 0.78em; color: {text1};
+        cursor: pointer; transition: all 0.15s ease;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        display: block; width: 100%; text-align: left;
+    }}
+    .preset-btn:hover {{ border-color: {accent}; color: {accent}; }}
+
+    .stChatMessage .stButton > button {{
+        padding: 2px 8px !important; min-width: unset !important;
+        font-size: 0.85em !important;
+    }}
+
+    /* Custom CSS components for Light/Dark Adaptability */
+    .card {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        transition: all 0.2s ease;
+        color: {text0};
+    }}
+    .card:hover {{
+        background: {card_hover};
+        border-color: {border_hover};
+    }}
+    .accent-card {{
+        background: {accent_bg};
+        border: 1px solid rgba(0, 120, 212, 0.2);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        color: {text0};
+    }}
+    .compact-metric {{
+        background: {card_bg};
+        border: 1px solid {border};
         border-radius: 8px;
-        padding: 12px 16px;
-        min-width: 120px;
-    }
-
-    .compact-metric .value {
+        padding: 12px;
+        text-align: center;
+    }}
+    .compact-metric .value {{
         font-size: 1.5em;
         font-weight: 700;
-        color: #00bcf2;
-    }
-
-    .compact-metric .label {
-        font-size: 0.8em;
-        color: rgba(255, 255, 255, 0.5);
+        color: {accent};
+    }}
+    .compact-metric .label {{
+        font-size: 0.85em;
+        color: {text1};
         margin-top: 4px;
-    }
-</style>
-"""
+    }}
+    .status-bar {{
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        background: {bg2};
+        border: 1px solid {border};
+        border-radius: 6px;
+        margin: 6px 0;
+        font-size: 0.85em;
+    }}
+    .status-dot {{
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        display: inline-block;
+    }}
+    .status-dot.ready {{
+        background: #00cc6a;
+    }}
+    .status-dot.error {{
+        background: #ff4343;
+    }}
+    .status-text {{
+        font-weight: 500;
+        color: {text0};
+        flex-grow: 1;
+    }}
+    .status-value {{
+        color: {text1};
+    }}
+    .source-item {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 6px;
+        padding: 8px 12px;
+        margin: 4px 0;
+        color: {text0};
+    }}
+
+</style>"""
 
 
-def apply_theme() -> None:
-    """Inject minimal Fluent Design CSS into Streamlit app."""
-    st.markdown(MINIMAL_CSS, unsafe_allow_html=True)
+def apply_theme(is_dark: bool = True) -> None:
+    """Inject themed CSS into Streamlit app."""
+    st.markdown(theme_css(is_dark), unsafe_allow_html=True)
 
 
 def render_card(title: str, content: str, accent: bool = False) -> None:
-    """Render a styled card.
-
-    Args:
-        title: Card title.
-        content: Card content (markdown supported).
-        accent: Use accent styling.
-    """
+    """Render a styled card."""
     css_class = "accent-card" if accent else "card"
     st.markdown(f"""
     <div class="{css_class}">
-        <h4 style="margin-top:0; margin-bottom:12px; color: #ffffff;">{title}</h4>
-        <div style="color: #e4e6eb;">{content}</div>
+        <h4 style="margin-top:0; margin-bottom:12px; color: inherit;">{title}</h4>
+        <div>{content}</div>
     </div>
     """, unsafe_allow_html=True)
 
 
 def render_compact_metric(label: str, value: str | int) -> None:
-    """Render a compact metric.
-
-    Args:
-        label: Metric label.
-        value: Metric value.
-    """
+    """Render a compact metric."""
     st.markdown(f"""
     <div class="compact-metric">
         <div class="value">{value}</div>
@@ -376,13 +389,7 @@ def render_compact_metric(label: str, value: str | int) -> None:
 
 
 def render_status_bar(label: str, value: str, status: str = "ready") -> None:
-    """Render a minimal status bar.
-
-    Args:
-        label: Status label.
-        value: Status value text.
-        status: 'ready', 'warning', or 'error'.
-    """
+    """Render a minimal status bar."""
     st.markdown(f"""
     <div class="status-bar">
         <span class="status-dot {status}"></span>
@@ -392,40 +399,12 @@ def render_status_bar(label: str, value: str, status: str = "ready") -> None:
     """, unsafe_allow_html=True)
 
 
-def render_nav_button(icon: str, label: str, page_id: str, active: bool = False) -> None:
-    """Render a navigation button.
-
-    Args:
-        icon: Icon emoji.
-        label: Button label.
-        page_id: Page identifier.
-        active: Whether this is the active page.
-    """
-    active_class = " active" if active else ""
-    st.markdown(f"""
-    <div class="nav-btn{active_class}" onclick="window.parent.postMessage({{type: 'streamlit:setComponentValue', value: '{page_id}'}}, '*')">
-        <span class="icon">{icon}</span>
-        <span>{label}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-
 def render_chat_message(role: str, content: str, sources: list | None = None) -> None:
-    """Render a chat message bubble using Streamlit native components.
-
-    Uses st.chat_message() for proper positioning and st.markdown()
-    for safe content rendering. Avoids raw HTML injection to prevent
-    HTML code leak when content is copied or exported.
-
-    Args:
-        role: 'user' or 'assistant'.
-        content: Message content (markdown supported).
-        sources: Optional list of source dicts with keys: source, score, snippet.
-    """
+    """Render a chat message bubble using Streamlit native components."""
     with st.chat_message(role):
         st.markdown(content)
         if sources and role == "assistant":
-            with st.expander(f"📎 Sources ({len(sources)})"):
+            with st.expander(f"Sources ({len(sources)})"):
                 for s in sources:
                     src = s.get("source", "Unknown")
                     score = s.get("score", 0)

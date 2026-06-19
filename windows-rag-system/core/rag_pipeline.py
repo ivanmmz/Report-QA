@@ -62,35 +62,18 @@ class RAGPipeline:
                 context="",
             )
 
-        # Build context from retrieved chunks
-        # Strategy: extract key data regions around "EFF" keywords rather than
-        # taking arbitrary first-N chars (which contain mostly date-list noise)
-        MAX_CONTEXT_CHARS = 6000
+        # Build context from retrieved chunks using full chunk content to preserve tables
+        MAX_CONTEXT_CHARS = 30000
         context_parts = []
         total_chars = 0
 
         for i, r in enumerate(results):
             content = r.get("content", "")
             source = f"[{i+1}] {r.get('source', 'Unknown')}"
-
-            # Smart extraction: find key data region around EFF/ efficiency keywords
-            eff_idx = content.find("EFF")
-            if eff_idx < 0:
-                eff_idx = content.find("efficiency")
-            if eff_idx < 0:
-                eff_idx = content.find("Efficiency")
-
-            if eff_idx >= 0:
-                # Take a window around the key data: 100 chars before, 200 after
-                start = max(0, eff_idx - 100)
-                end = min(len(content), eff_idx + 200)
-                extracted = content[start:end]
-            else:
-                # Fallback: take last 300 chars (most compact data region)
-                extracted = content[-300:] if len(content) > 300 else content
-
-            part = f"{source}\n{extracted}"
+            part = f"{source}\n{content}"
             if total_chars + len(part) > MAX_CONTEXT_CHARS:
+                if not context_parts:
+                    context_parts.append(part[:MAX_CONTEXT_CHARS])
                 break
             context_parts.append(part)
             total_chars += len(part)
