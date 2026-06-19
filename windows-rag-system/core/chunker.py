@@ -241,17 +241,4 @@ class TextChunker:
 
         return chunks
 
-    def chunk_documents(self, documents: List[tuple]) -> List[TextChunk]:
-        """Chunk multiple documents.
 
-        Args:
-            documents: List of (text, source, page) tuples.
-
-        Returns:
-            Combined list of TextChunk objects.
-        """
-        all_chunks = []
-        for text, source, page in documents:
-            chunks = self.chunk_document(text, source, page)
-            all_chunks.extend(chunks)
-        return all_chunks

@@ -24,7 +24,28 @@
       "Bash(python -m streamlit run app.py)",
       "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('Streamlit running:', 'YES' if r==0 else 'NO'\\)\")",
       "Bash(python -c \"import socket; s=socket.socket\\(\\); r=s.connect_ex\\(\\('localhost',8501\\)\\); s.close\\(\\); print\\('Running:', 'YES' if r==0 else 'NO'\\)\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(cd /d \"C:\\\\Users\\\\Ivan\\\\Desktop\\\\Report QA1\\\\windows-rag-system\")",
+      "Bash(cmd /c run.cmd)",
+      "Bash(C:/Windows/System32/cmd.exe /c \"echo Test 1 - no activate\")",
+      "Bash(python -c \"import streamlit\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"echo --- streamlit available ---\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \".\\\\run.cmd\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"call run.cmd\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"@echo on & call run.cmd\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"echo before & call venv\\\\Scripts\\\\activate & echo after & set VIRTUAL_ENV\")",
+      "Bash(C:/Windows/System32/cmd.exe //c \"echo hello\")",
+      "Bash(C:/Windows/System32/cmd.exe //c \"C:\\\\Users\\\\Ivan\\\\Desktop\\\\Report QA1\\\\windows-rag-system\\\\run.cmd > C:\\\\Users\\\\Ivan\\\\Desktop\\\\Report QA1\\\\output2.txt 2>&1\")",
+      "Read(//c/Users/Ivan/Desktop/**)",
+      "Bash(C:/Windows/System32/cmd.exe //c \"echo BEFORE.RUN& call run.cmd & echo AFTER.RUN\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(powershell.exe -Command \"C:\\\\Users\\\\Ivan\\\\Desktop\\\\Report QA1\\\\windows-rag-system\\\\venv\\\\Scripts\\\\Activate.ps1; python -c 'import streamlit; print\\(\\\\\"streamlit ok\\\\\"\\)'\")",
+      "Bash(C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command \"& { . '.\\\\venv\\\\Scripts\\\\Activate.ps1'; python test_import.py }\")",
+      "Bash(C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command \"Start-Process -Wait -FilePath 'C:\\\\Windows\\\\System32\\\\cmd.exe' -ArgumentList '/c', '.\\\\run.cmd'\")",
+      "Bash(echo \"POWERSHELL EXIT: $?\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"python --version > C:\\\\Users\\\\Ivan\\\\Desktop\\\\Report~1\\\\pyver.txt 2>&1\")",
+      "Bash(C:/Windows/System32/cmd.exe /c \"python --version > C:\\\\Users\\\\Ivan\\\\Desktop\\\\pyver.txt 2>&1\")",
+      "Bash(C:/Windows/System32/cmd.exe //c \"python --version > C:\\\\Users\\\\Ivan\\\\Desktop\\\\pyver.txt 2>&1\")"
     ]
   }
 }

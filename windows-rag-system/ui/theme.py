@@ -36,6 +36,7 @@ def theme_css(is_dark: bool) -> str:
         input_bg = "rgba(255,255,255,0.8)"
         sidebar_bg = "rgba(255,255,255,0.97)"
         gradient = "linear-gradient(135deg, #f0f2f5 0%, #ffffff 50%, #f0f2f5 100%)"
+    dialog_overlay = "rgba(0,0,0,0.25)" if not is_dark else "rgba(0,0,0,0.4)"
 
     return f"""
 <style>
@@ -181,6 +182,7 @@ def theme_css(is_dark: bool) -> str:
         border: 2px dashed {border};
         border-radius: 12px;
         padding: 32px;
+        color: {text0};
     }}
 
     h1 {{ color: {text0}; font-weight: 700; font-size: 1.8em; margin-bottom: 24px; }}
@@ -229,24 +231,151 @@ def theme_css(is_dark: bool) -> str:
         border-color: {border} !important;
     }}
 
-    /* Dialog/modal overlay */
-    [data-testid="stDialog"] {{
-        background: rgba(0,0,0,0.4) !important;
+    /* Dialog/modal overlay + card */
+    /* ── Two-layer overlay: stDialog itself + its immediate child ── */
+    :is([data-testid="stDialog"], [data-testid="stModal"]),
+    [data-testid="stDialog"] > div:first-child {{
+        background: {dialog_overlay} !important;
     }}
-    [data-testid="stDialog"] [data-testid="stVerticalBlock"] {{
+    /* ── The actual dialog card (Streamlit 1.58 renders it as div[role="dialog"]) ── */
+    :is([data-testid="stDialog"], [data-testid="stModal"]) div[role="dialog"] {{
         background: {bg1} !important;
         color: {text0} !important;
     }}
-    [data-testid="stDialog"] h1,
-    [data-testid="stDialog"] h2,
-    [data-testid="stDialog"] h3,
-    [data-testid="stDialog"] h4 {{
+    :is([data-testid="stDialog"], [data-testid="stModal"]) h1,
+    :is([data-testid="stDialog"], [data-testid="stModal"]) h2,
+    :is([data-testid="stDialog"], [data-testid="stModal"]) h3,
+    :is([data-testid="stDialog"], [data-testid="stModal"]) h4 {{
         color: {text0} !important;
     }}
 
-    /* Streamlit info/warning/error/success boxes - use theme */
+    /* Streamlit info/warning/error/success boxes */
     .stAlert {{
         color: {text0} !important;
+        background: {bg2} !important;
+        border: 1px solid {border} !important;
+    }}
+
+    /* ── Native Streamlit widget appearance (theme-aware) ────────────── */
+
+    /* Selectbox: control itself */
+    [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+        background: {input_bg} !important;
+        border-color: {border} !important;
+        color: {text0} !important;
+    }}
+    [data-testid="stSelectbox"] [data-baseweb="select"] + div {{
+        color: {text0} !important;
+    }}
+
+    /* Selectbox: dropdown menu (rendered in React portal outside the dialog) */
+    [data-baseweb="popover"] [data-baseweb="menu"] {{
+        background: {bg1} !important;
+        border: 1px solid {border} !important;
+        border-radius: 8px !important;
+    }}
+    [data-baseweb="popover"] [data-baseweb="option"] {{
+        background: transparent !important;
+        color: {text0} !important;
+    }}
+    [data-baseweb="popover"] [data-baseweb="option"]:hover,
+    [data-baseweb="popover"] [role="option"][aria-selected="true"] {{
+        background: {accent_bg} !important;
+    }}
+
+    /* Number input: field + step buttons */
+    [data-testid="stNumberInput"] input {{
+        background: {input_bg} !important;
+        color: {text0} !important;
+        border-color: {border} !important;
+    }}
+    [data-testid="stNumberInput"] button {{
+        background: {bg2} !important;
+        border-color: {border} !important;
+        color: {text0} !important;
+    }}
+    [data-testid="stNumberInput"] button:hover {{
+        background: {bg1} !important;
+    }}
+
+    /* Text input / text area */
+    [data-testid="stTextInput"] input {{
+        background: {input_bg} !important;
+        color: {text0} !important;
+        border-color: {border} !important;
+    }}
+    [data-testid="stTextArea"] textarea {{
+        background: {input_bg} !important;
+        color: {text0} !important;
+        border-color: {border} !important;
+    }}
+    [data-testid="stChatInputTextArea"] {{
+        background: {input_bg} !important;
+        color: {text0} !important;
+        border: 1px solid {border} !important;
+        border-radius: 8px !important;
+    }}
+
+    /* File uploader text */
+    [data-testid="stFileUploader"] small,
+    [data-testid="stFileUploader"] span,
+    [data-testid="stFileUploader"] div[data-testid="stMarkdown"] {{
+        color: {text1} !important;
+    }}
+
+    /* Expander */
+    [data-testid="stExpander"] [data-testid="stExpanderToggle"] {{
+        background: transparent !important;
+        color: {text0} !important;
+    }}
+    [data-testid="stExpander"] [data-testid="stExpanderToggle"]:hover {{
+        background: {bg2} !important;
+    }}
+
+    /* Slider */
+    [data-testid="stSlider"] span,
+    [data-testid="stSlider"] label {{
+        color: {text0} !important;
+    }}
+    [data-baseweb="slider"] div[role="slider"] {{
+        background: {accent} !important;
+    }}
+
+    /* Toggle / checkbox labels */
+    [data-testid="stToggle"] label span,
+    [data-testid="stCheckbox"] label span {{
+        color: {text0} !important;
+    }}
+
+    /* Tabs */
+    [data-testid="stTabs"] [data-baseweb="tab"] {{
+        color: {text1} !important;
+    }}
+    [data-testid="stTabs"] [aria-selected="true"] {{
+        color: {accent} !important;
+    }}
+
+    /* Dialog / Modal close button */
+    :is([data-testid="stDialog"], [data-testid="stModal"]) button[kind="borderless"] {{
+        color: {text0} !important;
+    }}
+    :is([data-testid="stDialog"], [data-testid="stModal"]) button[kind="borderless"]:hover {{
+        background: {bg2} !important;
+    }}
+
+    /* Make sure all standard text in dialog has theme-aware color */
+    :is([data-testid="stDialog"], [data-testid="stModal"]) p,
+    :is([data-testid="stDialog"], [data-testid="stModal"]) li,
+    :is([data-testid="stDialog"], [data-testid="stModal"]) .stMarkdown {{
+        color: {text0} !important;
+    }}
+
+    /* Chat message container */
+    [data-testid="stChatMessage"] {{
+        background: {bg2} !important;
+        border: 1px solid {border} !important;
+        border-radius: 12px !important;
+        padding: 8px 12px !important;
     }}
 
     .minimal-divider {{ border: none; height: 1px; background: {border}; margin: 16px 0; }}
@@ -365,50 +494,3 @@ def theme_css(is_dark: bool) -> str:
 def apply_theme(is_dark: bool = True) -> None:
     """Inject themed CSS into Streamlit app."""
     st.markdown(theme_css(is_dark), unsafe_allow_html=True)
-
-
-def render_card(title: str, content: str, accent: bool = False) -> None:
-    """Render a styled card."""
-    css_class = "accent-card" if accent else "card"
-    st.markdown(f"""
-    <div class="{css_class}">
-        <h4 style="margin-top:0; margin-bottom:12px; color: inherit;">{title}</h4>
-        <div>{content}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_compact_metric(label: str, value: str | int) -> None:
-    """Render a compact metric."""
-    st.markdown(f"""
-    <div class="compact-metric">
-        <div class="value">{value}</div>
-        <div class="label">{label}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_status_bar(label: str, value: str, status: str = "ready") -> None:
-    """Render a minimal status bar."""
-    st.markdown(f"""
-    <div class="status-bar">
-        <span class="status-dot {status}"></span>
-        <span class="status-text">{label}</span>
-        <span class="status-value">{value}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_chat_message(role: str, content: str, sources: list | None = None) -> None:
-    """Render a chat message bubble using Streamlit native components."""
-    with st.chat_message(role):
-        st.markdown(content)
-        if sources and role == "assistant":
-            with st.expander(f"Sources ({len(sources)})"):
-                for s in sources:
-                    src = s.get("source", "Unknown")
-                    score = s.get("score", 0)
-                    snippet = s.get("snippet", "")
-                    st.markdown(f"**{src}** — score: `{score:.3f}`")
-                    if snippet:
-                        st.caption(snippet[:300])

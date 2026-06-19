@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "rag-system",
-      "runtimeExecutable": "C:/Users/Ivan/Desktop/Report QA/windows-rag-system/venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "streamlit", "run", "C:/Users/Ivan/Desktop/Report QA/windows-rag-system/app.py", "--server.port", "8502"],
+      "runtimeExecutable": "${workspaceFolder}/windows-rag-system/venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "streamlit", "run", "${workspaceFolder}/windows-rag-system/app.py", "--server.port", "8502"],
       "autoPort": false,
       "port": 8502
     }

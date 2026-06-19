@@ -56,7 +56,7 @@ def test_full_pipeline():
     )
     doc_manager.initialize_stores(embedder, store)
 
-    report_folder = Path("C:/Users/Ivan/Desktop/Report QA/1. Report")
+    report_folder = Path(__file__).resolve().parent.parent.parent / "1. Report"
     doc_manager.set_folder(str(report_folder))
     result = doc_manager.sync()
     print(f"Sync result: {result}")

@@ -7,9 +7,19 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+from utils.paths import (
+    SETTINGS_PATH,
+    API_KEYS_LOCAL_PATH,
+    API_KEYS_PATH,
+    DOC_INDEX_PATH,
+    VECTOR_DIR,
+    FAISS_INDEX_PATH,
+    FAISS_METADATA_PATH,
+)
+
 import streamlit as st
 
-from ui.theme import apply_theme, render_card, render_compact_metric, render_status_bar
+from ui.theme import apply_theme
 from ui.report_generator import render_report_generator
 
 from core.document_manager import DocumentManager
@@ -83,7 +93,7 @@ if "initialized" not in st.session_state:
 @st.cache_resource
 def load_settings():
     """Load application settings."""
-    return read_json("config/settings.json")
+    return read_json(SETTINGS_PATH)
 
 settings = load_settings()
 st.session_state.settings = settings
@@ -103,8 +113,8 @@ def initialize_system():
     # Always initialize document manager (no LLM/embedder needed for folder ops)
     if st.session_state.doc_manager is None:
         doc_manager = DocumentManager(
-            index_path="data/metadata/doc_index.json",
-            vector_dir="data/vectors",
+            index_path=DOC_INDEX_PATH,
+            vector_dir=VECTOR_DIR,
             settings=st.session_state.settings,
         )
         st.session_state.doc_manager = doc_manager
@@ -125,8 +135,8 @@ def initialize_system():
     try:
         # Initialize LLM for chat (uses default provider from api_keys.local.json)
         llm = LLMGateway(
-            config_path="config/api_keys.local.json",
-            fallback_path="config/api_keys.json",
+            config_path=API_KEYS_LOCAL_PATH,
+            fallback_path=API_KEYS_PATH,
         )
         st.session_state.llm = llm
 
@@ -140,13 +150,24 @@ def initialize_system():
             api_key=embed_api_key,
         )
 
-        # Initialize vector store
+        # Auto-detect real embedding dimension via API probe (1 dummy call)
+        embed_dim = embedder.detect_dimension()
+
+        # Initialize vector store with detected dimension
         vector_store = FAISSStore(
-            dimension=embedder.dimension,
-            index_path="data/vectors/faiss.index",
-            metadata_path="data/vectors/metadata.pkl",
+            dimension=embed_dim,
+            index_path=FAISS_INDEX_PATH,
+            metadata_path=FAISS_METADATA_PATH,
         )
         vector_store.load()
+
+        # If existing index has a different dimension, clear and auto-rebuild
+        if vector_store.count() > 0 and vector_store.index.d != embed_dim:
+            logger.warning(
+                f"FAISS index dimension ({vector_store.index.d}) doesn't match "
+                f"model dimension ({embed_dim}). Clearing old index for auto-rebuild."
+            )
+            vector_store.clear()
 
         # Bind stores to document manager
         st.session_state.doc_manager.initialize_stores(embedder, vector_store)
@@ -205,8 +226,8 @@ def reinitialize_llm_components():
     try:
         # Create new LLM gateway (reads fresh config from api_keys.local.json)
         llm = LLMGateway(
-            config_path="config/api_keys.local.json",
-            fallback_path="config/api_keys.json",
+            config_path=API_KEYS_LOCAL_PATH,
+            fallback_path=API_KEYS_PATH,
         )
         st.session_state.llm = llm
 
@@ -220,13 +241,24 @@ def reinitialize_llm_components():
             api_key=embed_api_key,
         )
 
+        # Auto-detect real embedding dimension via API probe
+        embed_dim = embedder.detect_dimension()
+
         # Ensure vector store has the correct dimension
         vector_store = FAISSStore(
-            dimension=embedder.dimension,
-            index_path="data/vectors/faiss.index",
-            metadata_path="data/vectors/metadata.pkl",
+            dimension=embed_dim,
+            index_path=FAISS_INDEX_PATH,
+            metadata_path=FAISS_METADATA_PATH,
         )
         vector_store.load()
+
+        # If existing index has a different dimension, clear and auto-rebuild
+        if vector_store.count() > 0 and vector_store.index.d != embed_dim:
+            logger.warning(
+                f"FAISS index dimension ({vector_store.index.d}) doesn't match "
+                f"model dimension ({embed_dim}). Clearing old index for auto-rebuild."
+            )
+            vector_store.clear()
 
         # Update document manager embedder
         if st.session_state.doc_manager:

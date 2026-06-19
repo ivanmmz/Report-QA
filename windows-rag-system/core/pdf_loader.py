@@ -246,22 +246,3 @@ def load_pdf(path: str | Path) -> PDFDocument:
         pages=page_count,
         metadata=metadata,
     )
-
-
-def load_multiple_pdfs(paths: List[str | Path]) -> List[PDFDocument]:
-    """Load multiple PDFs.
-
-    Args:
-        paths: List of PDF file paths.
-
-    Returns:
-        List of PDFDocument instances.
-    """
-    documents = []
-    for p in paths:
-        try:
-            doc = load_pdf(p)
-            documents.append(doc)
-        except Exception as e:
-            logger.error(f"Error loading {p}: {e}")
-    return documents

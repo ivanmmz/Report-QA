@@ -50,24 +50,6 @@ class DocumentRetriever:
         
         return results
 
-    def retrieve_with_scores(self, query: str, top_k: int | None = None) -> tuple[List[str], List[float]]:
-        """Retrieve chunks and their similarity scores.
-
-        Args:
-            query: User query string.
-            top_k: Override default top_k.
-
-        Returns:
-            Tuple of (texts, scores).
-        """
-        k = top_k or self.top_k
-        query_embedding = self.embedder.embed_query(query)
-        results = self.vector_store.search(query_embedding, k=k)
-        
-        texts = [r["content"] for r in results]
-        scores = [r.get("score", 0.0) for r in results]
-        return texts, scores
-
     def update_embedder(self, embedder) -> None:
         """Update embedder reference.
 

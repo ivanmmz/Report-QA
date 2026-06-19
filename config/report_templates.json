@@ -1,0 +1,7 @@
+{
+  "OSE": {
+    "name": "OSE",
+    "description": "Operation System Efficiency Report (运行效率报告)",
+    "prompt": "Operation System Efficiency Report (OSE):\nAnalyze the operation system efficiency, identify runtime bottlenecks, summarize chiller plant / system COP metrics, and suggest energy saving optimizations based on the documents."
+  }
+}

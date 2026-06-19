@@ -50,6 +50,31 @@
       ],
       "api_key": "111",
       "description": ""
+    },
+    "qwen": {
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "models": [
+        "text-embedding-v4",
+        "text-embedding-v3",
+        "qwen3-vl-embedding",
+        "gte-rerank-v2",
+        "qwen3-vl-rerank"
+      ],
+      "api_key": "sk-148e53121f49444bb87988c4134f291c",
+      "description": ""
+    },
+    "Nv": {
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "models": [
+        "minimaxai/minimax-m3",
+        "deepseek-ai/deepseek-v4-flash",
+        "deepseek-ai/deepseek-v4-pro",
+        "moonshotai/kimi-k2.6",
+        "nvidia/nv-embed-v1",
+        "nv-rerank-qa-mistral-4b:1"
+      ],
+      "api_key": "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",
+      "description": ""
     }
   },
   "default_provider": "Opencode go",

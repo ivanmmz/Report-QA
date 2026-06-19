@@ -13,10 +13,10 @@ import streamlit as st
 import streamlit.components.v1 as components
 from utils.file_io import read_json, write_json
 from utils.background_task import BackgroundTask
+from utils.paths import PROJECT_ROOT
 from core.report_generator import ReportGenerator, Report
 from core.rag_pipeline import RAGPipeline
 from llm.gateway import LLMGateway
-from ui.theme import render_card, render_chat_message
 
 # Chart renderer script helper with dynamic theme support.
 def get_chart_render_script(is_dark: bool) -> str:
@@ -463,7 +463,7 @@ def init_report_state() -> None:
 # Copilot Chat Session Management
 # ---------------------------------------------------------------------------
 
-COPILOT_HISTORY_DIR = Path("data/copilot_history")
+COPILOT_HISTORY_DIR = PROJECT_ROOT / "data" / "copilot_history"
 
 
 def _ensure_copilot_history_dir() -> Path:
@@ -572,7 +572,7 @@ def _render_copilot_history() -> None:
 
 def load_templates() -> Dict[str, Any]:
     """Load report templates from config/report_templates.json."""
-    template_file = Path("config/report_templates.json")
+    template_file = PROJECT_ROOT / "config" / "report_templates.json"
     if not template_file.exists():
         default_templates = {
             "OSE": {
@@ -594,7 +594,7 @@ def save_template(name: str, description: str, prompt: str) -> None:
         "description": description,
         "prompt": prompt
     }
-    write_json("config/report_templates.json", templates)
+    write_json(PROJECT_ROOT / "config" / "report_templates.json", templates)
 
 
 def delete_template(name: str) -> None:
@@ -602,12 +602,12 @@ def delete_template(name: str) -> None:
     templates = load_templates()
     if name in templates:
         del templates[name]
-        write_json("config/report_templates.json", templates)
+        write_json(PROJECT_ROOT / "config" / "report_templates.json", templates)
 
 
 def load_saved_reports() -> List[Dict[str, Any]]:
     """Load saved reports from data/reports/."""
-    reports_dir = Path("data/reports")
+    reports_dir = PROJECT_ROOT / "data" / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
     saved_reports = []
     for file in reports_dir.glob("report_*.json"):
@@ -621,21 +621,6 @@ def load_saved_reports() -> List[Dict[str, Any]]:
     # Sort by saved time descending
     saved_reports.sort(key=lambda x: x.get("saved_at", ""), reverse=True)
     return saved_reports
-
-
-def save_report(title: str, content: str) -> str:
-    """Save active report to data/reports/."""
-    reports_dir = Path("data/reports")
-    reports_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_path = reports_dir / f"report_{timestamp}.json"
-    data = {
-        "title": title,
-        "content": content,
-        "saved_at": datetime.now().isoformat()
-    }
-    write_json(file_path, data)
-    return str(file_path)
 
 
 def delete_report(file_path: str) -> None:
@@ -1416,7 +1401,7 @@ def render_report_generator(rag_pipeline: Optional[RAGPipeline], llm: Optional[L
                             if uploaded_file:
                                 if st.button("Index PDF File", use_container_width=True, key="chat_index_upload_btn"):
                                     with st.spinner("Indexing PDF..."):
-                                        upload_dir = Path("data/uploads")
+                                        upload_dir = PROJECT_ROOT / "data" / "uploads"
                                         upload_dir.mkdir(parents=True, exist_ok=True)
                                         file_path = upload_dir / uploaded_file.name
                                         with open(file_path, "wb") as f:

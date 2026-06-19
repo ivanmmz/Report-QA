@@ -4,10 +4,9 @@ Extracts structured data (dates, numbers, metrics) from document chunks
 using regex patterns and LLM-based extraction.
 """
 import re
-import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from utils.logger import setup_logger
 
@@ -270,110 +269,3 @@ class DataExtractor:
             except ValueError:
                 continue
         return None
-
-    def get_unique_dates(self, data_points: List[ExtractedDataPoint]) -> List[str]:
-        """Get sorted unique dates from data points.
-
-        Args:
-            data_points: List of data points.
-
-        Returns:
-            Sorted list of unique date strings.
-        """
-        dates = []
-        for dp in data_points:
-            if dp.type == "date":
-                parsed = self._parse_date(dp.value)
-                if parsed:
-                    dates.append(parsed)
-        dates = sorted(set(dates))
-        return [d.strftime("%Y-%m-%d") for d in dates]
-
-    def to_dict(self, data_points: List[ExtractedDataPoint]) -> List[Dict[str, Any]]:
-        """Convert data points to dicts.
-
-        Args:
-            data_points: List of data points.
-
-        Returns:
-            List of dicts.
-        """
-        return [asdict(dp) for dp in data_points]
-
-    def extract_with_llm(
-        self,
-        llm,
-        text: str,
-        extraction_type: str = "all",
-    ) -> List[Dict[str, Any]]:
-        """Use LLM to extract structured data from text.
-
-        Args:
-            llm: LLM gateway instance.
-            text: Text to analyze.
-            extraction_type: 'all', 'dates', 'metrics', 'entities'.
-
-        Returns:
-            List of extracted dicts.
-        """
-        system_prompt = """You are a data extraction specialist. Extract structured data from the provided text.
-
-Return ONLY a JSON array in this format:
-[
-  {"type": "date", "value": "2024-01-15", "context": "surrounding text", "label": "optional label"},
-  {"type": "metric", "value": "45.2", "unit": "%", "context": "surrounding text", "label": "efficiency"},
-  {"type": "entity", "value": "HVAC System A", "category": "equipment", "context": "surrounding text"}
-]
-
-Types: date, metric, entity, number, text
-Be precise and extract only factual data present in the text."""
-
-        user_prompt = f"""Extract all {extraction_type} data from the following text:
-
-{text[:3000]}"""
-
-        try:
-            response = llm.chat(user_prompt, "", system_prompt)
-            # Try to parse JSON from response
-            response = response.strip()
-            if response.startswith("```"):
-                response = response.split("```")[1]
-                if response.startswith("json"):
-                    response = response[4:]
-            data = json.loads(response)
-            if isinstance(data, list):
-                return data
-            return [data] if isinstance(data, dict) else []
-        except Exception as e:
-            logger.warning(f"LLM extraction failed: {e}")
-            return []
-
-    def summarize_data(self, data_points: List[ExtractedDataPoint]) -> Dict[str, Any]:
-        """Generate a summary of extracted data.
-
-        Args:
-            data_points: List of data points.
-
-        Returns:
-            Summary dict with counts, date ranges, key metrics.
-        """
-        dates = [dp for dp in data_points if dp.type == "date"]
-        metrics = [dp for dp in data_points if dp.type == "metric"]
-        numbers = [dp for dp in data_points if dp.type == "number"]
-
-        unique_dates = self.get_unique_dates(data_points)
-        date_range = None
-        if unique_dates:
-            date_range = {
-                "start": unique_dates[0],
-                "end": unique_dates[-1],
-                "count": len(unique_dates),
-            }
-
-        return {
-            "total": len(data_points),
-            "dates": {"count": len(dates), "unique": len(unique_dates), "range": date_range},
-            "metrics": {"count": len(metrics)},
-            "numbers": {"count": len(numbers)},
-            "sources": list(set(dp.source for dp in data_points)),
-        }

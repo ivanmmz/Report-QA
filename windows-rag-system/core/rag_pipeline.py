@@ -86,8 +86,7 @@ class RAGPipeline:
 
         answer = self.llm.chat(query, context)
 
-        import logging
-        logging.getLogger("rag_pipeline").info(f"LLM answer: {len(answer)} chars, preview={answer[:80] if answer else 'EMPTY!'}")
+        logger.info(f"LLM answer: {len(answer)} chars, preview={answer[:80] if answer else 'EMPTY!'}")
 
         return RAGAnswer(
             answer=answer,
@@ -95,36 +94,3 @@ class RAGPipeline:
             query=query,
             context=context,
         )
-
-    def answer_with_citations(self, query: str, top_k: int | None = None) -> Dict[str, Any]:
-        """Generate answer with formatted citations.
-
-        Args:
-            query: User question.
-            top_k: Override retrieval count.
-
-        Returns:
-            Dict with answer, sources, and formatted citations.
-        """
-        rag_answer = self.answer(query, top_k)
-        import logging as _lg
-        _lg.getLogger("rag_pipeline").info(f"answer_with_citations: type={type(rag_answer).__name__}")
-        if isinstance(rag_answer, RAGAnswer):
-            _lg.getLogger("rag_pipeline").info(f"RAGAnswer answer len={len(rag_answer.answer)}, preview={rag_answer.answer[:80] if rag_answer.answer else 'EMPTY!'}")
-            citations = []
-            for i, src in enumerate(rag_answer.sources):
-                citations.append({
-                    "id": i + 1,
-                    "source": src.get("source", "Unknown"),
-                    "score": round(src.get("score", 0.0), 4),
-                    "snippet": src.get("content", "")[:200] + "...",
-                })
-            
-            return {
-                "answer": rag_answer.answer,
-                "query": query,
-                "citations": citations,
-                "sources_count": len(citations),
-            }
-        
-        return {"answer": "", "query": query, "citations": [], "sources_count": 0}

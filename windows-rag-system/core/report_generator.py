@@ -8,9 +8,8 @@ and LLM-powered analysis. Supports multiple report templates:
 - Comparison Report
 - Metric Dashboard
 """
-import json
-from typing import List, Dict, Any, Optional, Generator
-from dataclasses import dataclass, asdict
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from datetime import datetime
 
 from utils.logger import setup_logger
@@ -82,39 +81,11 @@ class Report:
 
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert report to dict.
-
-        Returns:
-            Dict representation.
-        """
-        return {
-            "title": self.title,
-            "type": self.type,
-            "generated_at": self.generated_at,
-            "summary": self.summary,
-            "metadata": self.metadata,
-            "sections": [asdict(s) for s in self.sections],
-        }
-
-    def to_json(self) -> str:
-        """Convert report to JSON string.
-
-        Returns:
-            JSON string.
-        """
-        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
-
 
 class ReportGenerator:
     """Generates structured reports from document data."""
 
     REPORT_TYPES = {
-        "summary": "Executive Summary",
-        "time_analysis": "Time-Based Analysis",
-        "trend": "Trend Analysis",
-        "comparison": "Comparison Report",
-        "metrics": "Metrics Dashboard",
         "custom": "Custom Report",
     }
 
@@ -225,9 +196,8 @@ class ReportGenerator:
         if start_date or end_date:
             data_points = self.extractor.filter_by_date_range(data_points, start_date, end_date)
 
-        # Step 3: Generate report based on type
-        generator_method = getattr(self, f"_generate_{report_type}", self._generate_custom)
-        report = generator_method(
+        # Step 3: Generate custom report
+        report = self._generate_custom(
             query=query,
             context=context,
             sources=sources,
@@ -239,273 +209,6 @@ class ReportGenerator:
 
         logger.info(f"Generated report with {len(report.sections)} sections")
         return report
-
-    def _generate_summary(
-        self,
-        query: str,
-        context: str,
-        sources: List[Dict[str, Any]],
-        data_points: List[ExtractedDataPoint],
-        **kwargs,
-    ) -> Report:
-        """Generate executive summary report."""
-        system_prompt = """You are an expert report writer. Generate a concise executive summary.
-
-Rules:
-- Focus on key findings and actionable insights
-- Include specific numbers and metrics when available
-- Structure with clear headings
-- Be factual and objective
-- Use markdown formatting"""
-
-        user_prompt = f"""Generate an executive summary based on the following document analysis:
-
-Retrieved Context:
-{context}
-
-Extracted Data Points:
-{self._format_data_points(data_points[:50])}
-
-Generate a structured executive summary with:
-1. Key Findings
-2. Important Metrics
-3. Recommendations
-4. Data Sources"""
-
-        answer = self.llm.chat(user_prompt, "", system_prompt)
-
-        sections = self._parse_sections(answer)
-
-        return Report(
-            title="Executive Summary Report",
-            type="summary",
-            generated_at=datetime.now().isoformat(),
-            summary=answer[:500] + "..." if len(answer) > 500 else answer,
-            sections=sections,
-            metadata={
-                "sources": list(set(s.get("source", "Unknown") for s in sources)),
-                "data_points": len(data_points),
-                "query": query,
-            },
-        )
-
-    def _generate_time_analysis(
-        self,
-        query: str,
-        context: str,
-        sources: List[Dict[str, Any]],
-        data_points: List[ExtractedDataPoint],
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        **kwargs,
-    ) -> Report:
-        """Generate time-based analysis report."""
-        dates = self.extractor.get_unique_dates(data_points)
-        date_range = ""
-        if start_date and end_date:
-            date_range = f"Date Range: {start_date} to {end_date}"
-        elif dates:
-            date_range = f"Available Dates: {dates[0]} to {dates[-1]}"
-
-        system_prompt = """You are a data analyst specializing in time-based analysis.
-Generate a detailed time-based analysis report.
-
-Rules:
-- Identify trends over time
-- Highlight significant changes or events
-- Compare periods if applicable
-- Include specific dates and metrics
-- Use markdown tables for data presentation"""
-
-        user_prompt = f"""Generate a time-based analysis report.
-
-{date_range}
-
-Retrieved Context:
-{context}
-
-Extracted Data Points:
-{self._format_data_points(data_points[:50])}
-
-Generate a report with:
-1. Timeline Overview
-2. Key Events by Period
-3. Metric Changes Over Time
-4. Trends and Patterns
-5. Insights and Recommendations"""
-
-        answer = self.llm.chat(user_prompt, "", system_prompt)
-        sections = self._parse_sections(answer)
-
-        return Report(
-            title="Time-Based Analysis Report",
-            type="time_analysis",
-            generated_at=datetime.now().isoformat(),
-            summary=date_range,
-            sections=sections,
-            metadata={
-                "sources": list(set(s.get("source", "Unknown") for s in sources)),
-                "date_range": {"start": start_date, "end": end_date, "available": dates},
-                "data_points": len(data_points),
-            },
-        )
-
-    def _generate_trend(
-        self,
-        query: str,
-        context: str,
-        sources: List[Dict[str, Any]],
-        data_points: List[ExtractedDataPoint],
-        **kwargs,
-    ) -> Report:
-        """Generate trend analysis report."""
-        system_prompt = """You are a trend analysis expert. Identify and analyze trends in the data.
-
-Rules:
-- Identify upward/downward trends
-- Calculate change rates if possible
-- Compare with benchmarks if mentioned
-- Predict future trends based on data
-- Use specific numbers and percentages"""
-
-        user_prompt = f"""Generate a trend analysis report.
-
-Retrieved Context:
-{context}
-
-Extracted Data Points:
-{self._format_data_points(data_points[:50])}
-
-Generate a report with:
-1. Trend Overview
-2. Key Metrics Trends
-3. Period Comparisons
-4. Anomalies and Significant Changes
-5. Future Projections
-6. Recommendations"""
-
-        answer = self.llm.chat(user_prompt, "", system_prompt)
-        sections = self._parse_sections(answer)
-
-        return Report(
-            title="Trend Analysis Report",
-            type="trend",
-            generated_at=datetime.now().isoformat(),
-            summary="",
-            sections=sections,
-            metadata={
-                "sources": list(set(s.get("source", "Unknown") for s in sources)),
-                "data_points": len(data_points),
-            },
-        )
-
-    def _generate_comparison(
-        self,
-        query: str,
-        context: str,
-        sources: List[Dict[str, Any]],
-        data_points: List[ExtractedDataPoint],
-        **kwargs,
-    ) -> Report:
-        """Generate comparison report."""
-        system_prompt = """You are a comparison analysis expert. Compare data across different dimensions.
-
-Rules:
-- Identify comparable items
-- Use tables for side-by-side comparisons
-- Highlight differences and similarities
-- Provide quantitative comparisons
-- Draw conclusions from comparisons"""
-
-        user_prompt = f"""Generate a comparison report.
-
-Retrieved Context:
-{context}
-
-Extracted Data Points:
-{self._format_data_points(data_points[:50])}
-
-Generate a report with:
-1. Comparison Overview
-2. Side-by-Side Comparisons
-3. Key Differences
-4. Key Similarities
-5. Conclusions and Recommendations"""
-
-        answer = self.llm.chat(user_prompt, "", system_prompt)
-        sections = self._parse_sections(answer)
-
-        return Report(
-            title="Comparison Report",
-            type="comparison",
-            generated_at=datetime.now().isoformat(),
-            summary="",
-            sections=sections,
-            metadata={
-                "sources": list(set(s.get("source", "Unknown") for s in sources)),
-                "data_points": len(data_points),
-            },
-        )
-
-    def _generate_metrics(
-        self,
-        query: str,
-        context: str,
-        sources: List[Dict[str, Any]],
-        data_points: List[ExtractedDataPoint],
-        **kwargs,
-    ) -> Report:
-        """Generate metrics dashboard report."""
-        metrics = [dp for dp in data_points if dp.type == "metric"]
-
-        system_prompt = """You are a metrics and KPI specialist. Create a metrics dashboard report.
-
-Rules:
-- Organize metrics by category
-- Highlight key performance indicators
-- Provide context for each metric
-- Include benchmarks if available
-- Use tables for metric presentation"""
-
-        user_prompt = f"""Generate a metrics dashboard report.
-
-Retrieved Context:
-{context}
-
-Extracted Metrics:
-{self._format_data_points(metrics[:50])}
-
-Generate a report with:
-1. KPI Overview
-2. Performance Metrics by Category
-3. Key Metrics Table
-4. Benchmarks and Targets
-5. Insights and Recommendations"""
-
-        answer = self.llm.chat(user_prompt, "", system_prompt)
-        sections = self._parse_sections(answer)
-
-        # Add a data section with raw metrics
-        metrics_table = self._format_metrics_table(metrics)
-        sections.insert(0, ReportSection(
-            title="Raw Metrics Data",
-            content=metrics_table,
-            type="table",
-            sources=list(set(s.get("source", "Unknown") for s in sources)),
-            confidence=0.9,
-        ))
-
-        return Report(
-            title="Metrics Dashboard Report",
-            type="metrics",
-            generated_at=datetime.now().isoformat(),
-            summary=f"Total metrics extracted: {len(metrics)}",
-            sections=sections,
-            metadata={
-                "sources": list(set(s.get("source", "Unknown") for s in sources)),
-                "metrics_count": len(metrics),
-            },
-        )
 
     def _generate_custom(
         self,
@@ -566,26 +269,6 @@ Generate a detailed report with structured sections."""
             lines.append(f"- [{dp.type}] {dp.value} (source: {dp.source}, page: {dp.page})")
         return "\n".join(lines)
 
-    def _format_metrics_table(self, metrics: List[ExtractedDataPoint]) -> str:
-        """Format metrics as markdown table.
-
-        Args:
-            metrics: List of metric data points.
-
-        Returns:
-            Markdown table string.
-        """
-        if not metrics:
-            return "No metrics extracted."
-
-        lines = [
-            "| Metric | Value | Source | Page |",
-            "|--------|-------|--------|------|",
-        ]
-        for dp in metrics[:50]:  # Limit to 50
-            lines.append(f"| {dp.context[:50]} | {dp.value} | {dp.source} | {dp.page} |")
-        return "\n".join(lines)
-
     def _parse_sections(self, text: str) -> List[ReportSection]:
         """Parse markdown text into report sections.
 
@@ -642,35 +325,3 @@ Generate a detailed report with structured sections."""
 
         return sections
 
-    def stream_generate(
-        self,
-        report_type: str,
-        query: str = "",
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        filters: Optional[Dict[str, Any]] = None,
-        custom_prompt: Optional[str] = None,
-    ) -> Generator[str, None, None]:
-        """Stream generate a report (yield tokens).
-
-        Args:
-            report_type: Report type.
-            query: Optional query.
-            start_date: Optional start date.
-            end_date: Optional end date.
-            filters: Optional filters.
-            custom_prompt: Optional custom prompt.
-
-        Yields:
-            Token strings.
-        """
-        report = self.generate(
-            report_type=report_type,
-            query=query,
-            start_date=start_date,
-            end_date=end_date,
-            filters=filters,
-            custom_prompt=custom_prompt,
-        )
-        # Yield the markdown
-        yield report.to_markdown()

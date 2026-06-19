@@ -8,10 +8,11 @@ Manages persistent storage of API configurations with support for:
 """
 import os
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from utils.file_io import read_json, write_json
 from utils.logger import setup_logger
+from utils.paths import API_KEYS_LOCAL_PATH, API_KEYS_PATH
 
 logger = setup_logger("api_persistence")
 
@@ -20,8 +21,8 @@ class APIPersistence:
 
     def __init__(
         self,
-        local_path: str = "config/api_keys.local.json",
-        template_path: str = "config/api_keys.json",
+        local_path=API_KEYS_LOCAL_PATH,
+        template_path=API_KEYS_PATH,
     ):
         """Initialize persistence handler.
 
@@ -85,24 +86,6 @@ class APIPersistence:
         """
         write_json(self.local_path, config)
         logger.info("Saved API configuration")
-
-    def update_key(self, provider: str, api_key: str) -> None:
-        """Update API key for a provider.
-
-        Args:
-            provider: Provider name (e.g., 'openai').
-            api_key: New API key.
-        """
-        config = self.load()
-        providers = config.get("providers", {})
-        
-        if provider not in providers:
-            providers[provider] = {}
-        
-        providers[provider]["api_key"] = api_key
-        config["providers"] = providers
-        self.save(config)
-        logger.info(f"Updated API key for {provider}")
 
     def update_provider_config(
         self,
@@ -267,21 +250,3 @@ class APIPersistence:
         key = pconf.get("api_key", "")
         return bool(key) and key not in ("", "dummy", "not-needed")
 
-    def get_default_provider_config(self) -> Dict[str, Any]:
-        """Get default provider configuration.
-
-        Returns:
-            Default provider config.
-        """
-        provider, _ = self.get_default()
-        return self.get_provider_config(provider)
-
-    def reset_to_defaults(self) -> None:
-        """Reset configuration to empty state (no provider, no key)."""
-        config = {
-            "providers": {},
-            "default_provider": "",
-            "default_model": "",
-        }
-        self.save(config)
-        logger.info("Reset API configuration to empty state")

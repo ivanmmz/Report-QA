@@ -4,150 +4,206 @@ import streamlit as st
 from pathlib import Path
 from utils.file_io import write_json
 from utils.background_task import BackgroundTask
+from utils.paths import (
+    DOC_INDEX_PATH,
+    VECTOR_DIR,
+    UPLOADS_DIR,
+    SETTINGS_PATH,
+)
 from core.document_manager import DocumentManager
-from ui.theme import render_compact_metric
 
 
 # ---------------------------------------------------------------------------
 # CSS: compact settings dialog — targets Streamlit buttons by data-testid key
 # ---------------------------------------------------------------------------
-_DIALOG_CSS = """
-<style>
-/* ── Every button inside the settings dialog: compact ghost style ── */
-div[data-testid="stModal"] button[kind="secondary"],
-div[data-testid="stModal"] button[kind="primary"] {
-    padding: 4px 14px !important;
-    font-size: 0.80rem !important;
-    min-height: 30px !important;
-    height: 30px !important;
-    border-radius: 7px !important;
-    font-weight: 500 !important;
-    letter-spacing: 0.01em !important;
-}
-
-/* Default: ghost / outlined */
-div[data-testid="stModal"] button[kind="secondary"] {
-    background: transparent !important;
-    border: 1px solid rgba(128,128,128,0.30) !important;
-    color: var(--text0, #e0e0e0) !important;
-    width: auto !important;
-    max-width: fit-content !important;
-}
-div[data-testid="stModal"] button[kind="secondary"]:hover {
-    background: rgba(255,255,255,0.05) !important;
-    border-color: rgba(128,128,128,0.50) !important;
-}
-
-/* Destructive buttons: Red-tinted ghost */
-div[data-testid="stModal"] div[class*="st-key-dlg_clear_index"] button,
-div[data-testid="stModal"] div[class*="st-key-dlg_del_folder"] button,
-div[data-testid="stModal"] div[class*="st-key-delete_prov_btn"] button {
-    color: #e05555 !important;
-    border-color: rgba(224,85,85,0.35) !important;
-    background: transparent !important;
-}
-div[data-testid="stModal"] div[class*="st-key-dlg_clear_index"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-dlg_del_folder"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-delete_prov_btn"] button:hover {
-    background: rgba(224,85,85,0.08) !important;
-}
-
-/* Save / primary action buttons: small accent pill */
-div[data-testid="stModal"] div[class*="st-key-save_chat_settings_btn"] button,
-div[data-testid="stModal"] div[class*="st-key-save_emb_settings_btn"] button,
-div[data-testid="stModal"] div[class*="st-key-save_rerank_settings_btn"] button,
-div[data-testid="stModal"] div[class*="st-key-save_edit_prov_btn"] button,
-div[data-testid="stModal"] div[class*="st-key-add_prov_btn"] button,
-div[data-testid="stModal"] div[class*="st-key-dlg_add_folder_path_btn"] button {
-    background: var(--accent, #4f8bea) !important;
-    border: none !important;
-    color: #fff !important;
-    width: auto !important;
-    max-width: fit-content !important;
-}
-div[data-testid="stModal"] div[class*="st-key-save_chat_settings_btn"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-save_emb_settings_btn"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-save_rerank_settings_btn"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-save_edit_prov_btn"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-add_prov_btn"] button:hover,
-div[data-testid="stModal"] div[class*="st-key-dlg_add_folder_path_btn"] button:hover {
-    opacity: 0.85 !important;
-}
-
-/* Override use_container_width on action buttons — keep them auto-width */
-div[data-testid="stModal"] div[class*="st-key-dlg_sync_folder"] button,
-div[data-testid="stModal"] div[class*="st-key-dlg_reindex_all"] button,
-div[data-testid="stModal"] div[class*="st-key-dlg_clear_index"] button,
-div[data-testid="stModal"] div[class*="st-key-dlg_del_folder"] button {
-    width: 100% !important;  /* keep in column grid */
-}
-
-/* ── Status row ── */
-.dlg-status-row {
-    display: flex;
-    gap: 0;
-    align-items: stretch;
-    padding: 10px 0 14px;
-}
-.dlg-stat {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 0 18px;
-    border-right: 1px solid rgba(128,128,128,0.18);
-}
-.dlg-stat:first-child { padding-left: 0; }
-.dlg-stat:last-child { border-right: none; }
-.dlg-stat-val {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--text0, #e0e0e0);
-    line-height: 1.2;
-}
-.dlg-stat-lbl {
-    font-size: 0.72rem;
-    color: var(--text2, #888);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-/* ── Section label ── */
-.dlg-section-label {
-    font-size: 0.70rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text2, #888);
-    margin: 14px 0 5px;
-}
-
-/* ── Provider card ── */
-.dlg-prov-card {
-    padding: 8px 12px;
-    border-radius: 8px;
-    background: rgba(128,128,128,0.06);
-    border-left: 3px solid #888;
-    margin: 5px 0;
-    font-size: 0.82rem;
-}
-.dlg-prov-card.ok { border-left-color: #3ecf8e; }
-.dlg-prov-card.err { border-left-color: #e05555; }
-.dlg-prov-name { font-weight: 600; color: var(--text0, #e0e0e0); }
-.dlg-prov-meta { color: var(--text2, #888); margin-top: 2px; font-size: 0.78rem; }
-
-/* ── Tighten spacing inside modal ── */
-div[data-testid="stModal"] .stMarkdown p { margin: 0; }
-div[data-testid="stModal"] .stNumberInput { margin-bottom: 4px; }
-div[data-testid="stModal"] .stSelectbox  { margin-bottom: 4px; }
-div[data-testid="stModal"] .stTextInput  { margin-bottom: 4px; }
-div[data-testid="stModal"] hr { margin: 10px 0 !important; }
-</style>
-"""
-
-
 def _inject_css() -> None:
-    st.markdown(_DIALOG_CSS, unsafe_allow_html=True)
+    is_dark = st.session_state.get("is_dark", True)
+    if is_dark:
+        modal_bg = "rgba(255,255,255,0.05)"
+        modal_border = "rgba(255,255,255,0.08)"
+        text0 = "#e0e0e0"
+        text2 = "#888"
+        hover_bg = "rgba(255,255,255,0.05)"
+        prov_card_bg = "rgba(128,128,128,0.06)"
+    else:
+        modal_bg = "#f0f0f0"
+        modal_border = "rgba(0,0,0,0.1)"
+        text0 = "#1a1a2e"
+        text2 = "rgba(0,0,0,0.4)"
+        hover_bg = "rgba(0,0,0,0.04)"
+        prov_card_bg = "rgba(0,0,0,0.04)"
+
+    accent = "#0066cc" if not is_dark else "#4f8bea"
+
+    css = f"""
+    <style>
+    /* ── Every button inside the settings dialog: compact ghost style ── */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) button[kind="secondary"],
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) button[kind="primary"] {{
+        padding: 4px 14px !important;
+        font-size: 0.80rem !important;
+        min-height: 30px !important;
+        height: 30px !important;
+        border-radius: 7px !important;
+        font-weight: 500 !important;
+        letter-spacing: 0.01em !important;
+    }}
+
+    /* Default: ghost / outlined */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) button[kind="secondary"] {{
+        background: transparent !important;
+        border: 1px solid rgba(128,128,128,0.30) !important;
+        color: {text0} !important;
+        width: auto !important;
+        max-width: fit-content !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) button[kind="secondary"]:hover {{
+        background: {hover_bg} !important;
+        border-color: rgba(128,128,128,0.50) !important;
+    }}
+
+    /* Destructive buttons: Red-tinted ghost */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_clear_index"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_del_folder"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-delete_prov_btn"] button {{
+        color: #e05555 !important;
+        border-color: rgba(224,85,85,0.35) !important;
+        background: transparent !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_clear_index"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_del_folder"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-delete_prov_btn"] button:hover {{
+        background: rgba(224,85,85,0.08) !important;
+    }}
+
+    /* Save / primary action buttons: small accent pill */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_chat_settings_btn"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_emb_settings_btn"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_rerank_settings_btn"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_edit_prov_btn"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-add_prov_btn"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_add_folder_path_btn"] button {{
+        background: {accent} !important;
+        border: none !important;
+        color: #fff !important;
+        width: auto !important;
+        max-width: fit-content !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_chat_settings_btn"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_emb_settings_btn"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_rerank_settings_btn"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-save_edit_prov_btn"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-add_prov_btn"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_add_folder_path_btn"] button:hover {{
+        opacity: 0.85 !important;
+    }}
+
+    /* Override use_container_width on action buttons — keep them auto-width */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_sync_folder"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_reindex_all"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_clear_index"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) div[class*="st-key-dlg_del_folder"] button {{
+        width: 100% !important;
+    }}
+
+    /* ── Status row ── */
+    .dlg-status-row {{
+        display: flex;
+        gap: 0;
+        align-items: stretch;
+        padding: 10px 0 14px;
+    }}
+    .dlg-stat {{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 0 18px;
+        border-right: 1px solid rgba(128,128,128,0.18);
+    }}
+    .dlg-stat:first-child {{ padding-left: 0; }}
+    .dlg-stat:last-child {{ border-right: none; }}
+    .dlg-stat-val {{
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: {text0};
+        line-height: 1.2;
+    }}
+    .dlg-stat-lbl {{
+        font-size: 0.72rem;
+        color: {text2};
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }}
+
+    /* ── Section label ── */
+    .dlg-section-label {{
+        font-size: 0.70rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: {text2};
+        margin: 14px 0 5px;
+    }}
+
+    /* ── Provider card ── */
+    .dlg-prov-card {{
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: {prov_card_bg};
+        border-left: 3px solid #888;
+        margin: 5px 0;
+        font-size: 0.82rem;
+    }}
+    .dlg-prov-card.ok {{ border-left-color: #3ecf8e; }}
+    .dlg-prov-card.err {{ border-left-color: #e05555; }}
+    .dlg-prov-name {{ font-weight: 600; color: {text0}; }}
+    .dlg-prov-meta {{ color: {text2}; margin-top: 2px; font-size: 0.78rem; }}
+
+    /* ── Tighten spacing inside modal ── */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) .stMarkdown p {{ margin: 0; }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) .stNumberInput {{ margin-bottom: 4px; }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) .stSelectbox  {{ margin-bottom: 4px; }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) .stTextInput  {{ margin-bottom: 4px; }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) hr {{ margin: 10px 0 !important; }}
+
+    /* ── File uploader in dialog: compact style ── */
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] > label,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] > section > label {{
+        display: none !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] > section,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] > div {{
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button[data-testid="stBaseButton-secondary"],
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button[class*="st-emotion-cache"] {{
+        background: {accent} !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 6px 16px !important;
+        font-weight: 500 !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button[data-testid="stBaseButton-secondary"]:hover,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] button[class*="st-emotion-cache"]:hover {{
+        opacity: 0.85 !important;
+    }}
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] small,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] span,
+    :is(div[data-testid="stDialog"], div[data-testid="stModal"]) [data-testid="stFileUploader"] div[class*="st-emotion-cache"] {{
+        color: {text2} !important;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def _section(text: str) -> None:
@@ -236,8 +292,8 @@ def render_document_settings_in_dialog() -> None:
                 try:
                     if st.session_state.doc_manager is None:
                         doc_manager = DocumentManager(
-                            index_path="data/metadata/doc_index.json",
-                            vector_dir="data/vectors",
+                            index_path=DOC_INDEX_PATH,
+                            vector_dir=VECTOR_DIR,
                             settings=st.session_state.settings,
                         )
                         st.session_state.doc_manager = doc_manager
@@ -292,8 +348,18 @@ def render_document_settings_in_dialog() -> None:
                     st.error(f"❌ Synchronization failed: {sync_task.error}")
                 else:
                     res = sync_task.result
-                    if isinstance(res, dict) and res.get("status") == "success":
-                        st.success(f"✅ Indexed {res['indexed']} chunks from {res['files']} files successfully!")
+                    if isinstance(res, dict):
+                        msg = f"✅ Indexed {res.get('indexed', 0)} chunks from {res.get('files', 0)} files"
+                        failed = res.get("failed_files", [])
+                        if failed:
+                            st.warning(
+                                f"⚠️ {len(failed)} file(s) failed to index.\n"
+                                + "\n".join(f"  - {f.split('/')[-1]}" for f in failed[:5])
+                                + ("\n  ..." if len(failed) > 5 else "")
+                                + "\n\nTry Re-index after fixing the issue."
+                            )
+                        else:
+                            st.success(msg)
                     else:
                         st.success("✅ Synchronization complete!")
                 st.session_state.sync_task = None
@@ -308,7 +374,22 @@ def render_document_settings_in_dialog() -> None:
                 if reindex_task.error:
                     st.error(f"❌ Re-indexing failed: {reindex_task.error}")
                 else:
-                    st.success("✅ Re-indexing complete!")
+                    res = reindex_task.result
+                    if isinstance(res, dict):
+                        failed = res.get("failed_files", [])
+                        total = res.get("total_files", 0)
+                        indexed = res.get("total_indexed", 0)
+                        if failed:
+                            st.warning(
+                                f"⚠️ Indexed {indexed} chunks from {total} files; "
+                                f"{len(failed)} file(s) failed.\n"
+                                + "\n".join(f"  - {f.split('/')[-1]}" for f in failed[:5])
+                                + ("\n  ..." if len(failed) > 5 else "")
+                            )
+                        else:
+                            st.success(f"✅ Re-indexing complete! {indexed} chunks from {total} files.")
+                    else:
+                        st.success("✅ Re-indexing complete!")
                 st.session_state.reindex_task = None
                 st.button("Dismiss", key="dlg_dismiss_reindex_btn")
 
@@ -362,7 +443,7 @@ def render_document_settings_in_dialog() -> None:
         label_visibility="collapsed",
     )
     if uploaded_file:
-        upload_dir = Path("data/uploads")
+        upload_dir = UPLOADS_DIR
         upload_dir.mkdir(parents=True, exist_ok=True)
         file_path = upload_dir / uploaded_file.name
         with open(file_path, "wb") as f:
@@ -494,7 +575,7 @@ def render_api_settings_in_dialog() -> None:
                 settings["embedding_model"] = selected_emb_model
                 settings["chunk_size"] = new_chunk_size
                 settings["chunk_overlap"] = new_chunk_overlap
-                write_json("config/settings.json", settings)
+                write_json(SETTINGS_PATH, settings)
                 st.session_state.needs_reinit = True
                 st.success("✅ Embedding settings saved successfully!")
             except Exception as e:
@@ -563,7 +644,7 @@ def render_api_settings_in_dialog() -> None:
                     settings["rerank_model"] = selected_rerank_model
                     settings["rerank_top_k"] = new_rerank_top_k
                 settings["top_k"] = new_top_k
-                write_json("config/settings.json", settings)
+                write_json(SETTINGS_PATH, settings)
                 st.session_state.needs_reinit = True
                 st.success("✅ Reranker settings saved successfully!")
             except Exception as e:

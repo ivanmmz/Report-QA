@@ -7,6 +7,7 @@ from dataclasses import dataclass, asdict
 
 from utils.logger import setup_logger
 from utils.file_io import read_json, write_json, file_hash, list_files, ensure_dir
+from utils.paths import DOC_INDEX_PATH, VECTOR_DIR
 from core.pdf_loader import load_pdf
 from core.chunker import TextChunker, TextChunk
 from core.embedder import APIEmbedder
@@ -30,8 +31,8 @@ class DocumentManager:
 
     def __init__(
         self,
-        index_path: str = "data/metadata/doc_index.json",
-        vector_dir: str = "data/vectors",
+        index_path=DOC_INDEX_PATH,
+        vector_dir=VECTOR_DIR,
         settings: dict | None = None,
     ):
         """Initialize document manager.
@@ -242,58 +243,73 @@ class DocumentManager:
             logger.error(f"Failed to index {file_path}: {e}")
             return 0
 
-    def index_all(self, force_reindex: bool = False) -> Dict[str, int]:
+    def index_all(self, force_reindex: bool = False) -> Dict[str, Any]:
         """Index all files in selected folder.
 
         Args:
             force_reindex: Reindex even if already indexed.
 
         Returns:
-            Dict mapping file paths to chunk counts.
+            Dict with keys:
+              "results"       — dict mapping file paths to chunk counts (0 = failed)
+              "failed_files"  — list of file paths that failed to index
+              "total_indexed" — total chunks indexed across all files
+              "total_files"   — number of files with at least 1 chunk indexed
+            Backward-compat: "indexed" and "files" keys mirror total_indexed/files.
         """
         results = {}
-        
+        failed_files = []
+
         if not self.selected_folder:
-            return results
-        
+            return {"results": {}, "failed_files": [], "total_indexed": 0, "total_files": 0}
+
         changes = self.detect_changes()
         files_to_index = changes["new"] + changes["modified"]
-        
+
         if force_reindex:
             files_to_index = self.scan_folder()
-            # Clear existing
             self.vector_store.clear()
             self.documents = {}
-        
+
         for f in files_to_index:
             count = self.index_file(f)
             results[f] = count
-        
-        # Handle deleted files
+            if count == 0:
+                failed_files.append(f)
+
         for f in changes["deleted"]:
             self.documents[f].status = "deleted"
-        
+
         if changes["deleted"]:
             self._save_index()
-        
-        return results
+
+        total_indexed = sum(results.values())
+        total_files = len([v for v in results.values() if v > 0])
+
+        return {
+            "results": results,
+            "failed_files": failed_files,
+            "total_indexed": total_indexed,
+            "total_files": total_files,
+        }
 
     def sync(self) -> Dict[str, Any]:
         """Full sync: detect changes and index.
 
         Returns:
-            Summary dict with counts.
+            Summary dict with status, indexed counts, and failed file list.
         """
         if not self.selected_folder:
-            return {"status": "no_folder", "indexed": 0}
-        
+            return {"status": "no_folder", "indexed": 0, "failed_files": []}
+
         changes = self.detect_changes()
-        results = self.index_all()
-        
+        result = self.index_all()
+
         return {
-            "status": "success",
-            "indexed": sum(results.values()),
-            "files": len(results),
+            "status": "success" if not result["failed_files"] else "partial",
+            "indexed": result["total_indexed"],
+            "files": result["total_files"],
+            "failed_files": result["failed_files"],
             "changes": changes,
         }
 

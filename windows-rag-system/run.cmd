@@ -1,4 +1,6 @@
 @echo off
+:: Lock working directory to the script's own folder (handles moved/renamed folders)
+cd /d "%~dp0"
 chcp 65001 >nul
 cls
 title Windows RAG System
@@ -54,7 +56,7 @@ echo [INFO] Checking dependencies...
 python -c "import streamlit" >nul 2>&1
 if errorlevel 1 (
     echo [INFO] Installing dependencies...
-    pip install -r requirements.txt
+    python -m pip install -r requirements.txt
     if errorlevel 1 (
         echo [ERROR] Failed to install dependencies.
         pause
@@ -76,14 +78,14 @@ echo    Close this window or press Ctrl+C to stop
 echo ============================================
 echo.
 
-:: Launch Streamlit
-streamlit run app.py
+:: Launch Streamlit (use "python -m" instead of the streamlit.exe launcher,
+:: which bakes in the venv path at creation time and breaks if the folder is moved)
+python -m streamlit run app.py
 
 :: Check exit code
 if errorlevel 1 (
     echo.
-    echo [ERROR] Streamlit exited with error (code %errorlevel%).
-    echo.
+    echo [ERROR] Streamlit exited with error, exit code = %errorlevel%
     pause
 )
 

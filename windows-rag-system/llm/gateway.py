@@ -5,6 +5,7 @@ from openai import OpenAI
 
 from utils.logger import setup_logger
 from utils.file_io import read_json
+from utils.paths import API_KEYS_LOCAL_PATH, API_KEYS_PATH
 
 logger = setup_logger("llm_gateway")
 
@@ -12,7 +13,7 @@ logger = setup_logger("llm_gateway")
 class LLMGateway:
     """Unified LLM gateway supporting multiple providers."""
 
-    def __init__(self, config_path: str = "config/api_keys.local.json", fallback_path: str = "config/api_keys.json"):
+    def __init__(self, config_path=API_KEYS_LOCAL_PATH, fallback_path=API_KEYS_PATH):
         """Initialize gateway with provider configs.
 
         Args:
@@ -84,18 +85,6 @@ class LLMGateway:
             base_url=base_url,
             api_key=api_key or "dummy",
         )
-
-    def update_provider(self, provider: str, model: str | None = None) -> None:
-        """Switch provider/model.
-
-        Args:
-            provider: Provider name.
-            model: Optional model override.
-        """
-        self.provider = provider
-        if model:
-            self.model = model
-        self._init_client()
 
     def chat(self, query: str, context: str, system_prompt: str | None = None) -> str:
         """Send chat completion request.
@@ -180,13 +169,3 @@ class LLMGateway:
         except Exception as e:
             logger.error(f"LLM streaming error: {e}")
             yield f"Error: {e}"
-
-    def list_models(self) -> List[str]:
-        """List available models for current provider.
-
-        Returns:
-            List of model names.
-        """
-        providers = self.config.get("providers", {})
-        pconf = providers.get(self.provider, {})
-        return pconf.get("models", [])

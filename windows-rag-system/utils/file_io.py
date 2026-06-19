@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,8 @@ def write_json(path: str | Path, data: dict[str, Any], indent: int = 2) -> None:
 
     Writes to a temporary file first, then atomically renames to the
     target path. This prevents data corruption on crash during write.
+    Retries on Windows if the target file is transiently locked
+    (e.g., by antivirus scanning or concurrent reads).
 
     Args:
         path: Target file path.
@@ -73,8 +76,16 @@ def write_json(path: str | Path, data: dict[str, Any], indent: int = 2) -> None:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=indent, ensure_ascii=False, default=str)
-            # Atomic rename on same filesystem
-            os.replace(tmp_path, str(p))
+            # Atomic rename on same filesystem with retry for Windows locks
+            for attempt in range(5):
+                try:
+                    os.replace(tmp_path, str(p))
+                    break
+                except PermissionError:
+                    if attempt < 4:
+                        time.sleep(0.05 * (2 ** attempt))
+                        continue
+                    raise
         except Exception:
             # Clean up temp file on failure
             try:
