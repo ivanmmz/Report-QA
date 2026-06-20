@@ -1,3 +1,7 @@
+[简体中文](README.md) | [English](README_en.md)
+
+---
+
 # 🧠 Windows 本地智能文档 RAG 系统与报告生成画板
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
