@@ -42,7 +42,7 @@
 5. **Edge Copilot 风格画板**：左侧为 Markdown 实时编辑、渲染、保存画板（Canvas），支持下载为 MD/HTML（集成 Chart.js 可视化图表）；右侧为 Copilot 对话，支持一键将 AI 建议应用到 Canvas，或让 AI 直接更新 Canvas。
 
 ### 核心技术栈
-- **UI 框架**：Streamlit >= 1.40.0 (利用 Dialogs, Columns, Segmented Control 实现多栏布局)
+- **UI 框架**：Tauri 2.x + TypeScript + Tailwind CSS (利用原生桌面窗口与现代 Web 技术实现多栏布局)
 - **文档解析**：PyMuPDF (fitz) >= 1.24.0 (支持页面布局块分析与表格对象提取)
 - **向量数据库**：FAISS-CPU >= 1.8.0 (轻量、无服务的内积检索模式 `IndexFlatIP`)
 - **HTTP 客户端**：Httpx >= 0.27.0 (异步/同步请求大模型接口，具有重试机制)
@@ -55,47 +55,48 @@
 重建该应用时，必须严格遵守以下目录及命名规范：
 
 ```
-windows-rag-system/
-├── app.py                    # Streamlit 应用主入口
-├── requirements.txt          # 项目依赖包声明
-├── run.cmd                   # 双击一键启动脚本
-├── README.md                 # 说明文档
-├── config/
-│   ├── settings.json         # 核心系统设置 (分片、检索阈值、向量模型等)
-│   ├── api_keys.json         # API 提供商模板配置
-│   └── api_keys.local.json   # 用户配置的本地 API 密钥存储（运行时动态生成，不应提交 git）
-├── data/
-│   ├── documents/            # 默认扫描的源 PDF 文件夹（用户将 PDF 放入此目录）
-│   ├── uploads/              # UI 手动上传的 PDF 文件存储目录
-│   ├── reports/              # 用户保存的 Canvas 报告（JSON 格式）
-│   ├── copilot_history/      # AI 聊天会话历史（JSON 格式）
-│   ├── vectors/
-│   │   ├── faiss.index       # FAISS 序列化向量索引文件
-│   │   └── metadata.pkl      # 序列化的分片元数据映射 (Pickle 格式)
-│   └── metadata/
-│       └── doc_index.json    # 文件扫描状态注册表 (哈希值、状态、分片数)
-├── core/
-│   ├── __init__.py
-│   ├── api_persistence.py    # API 密钥与服务商信息持久化读写
-│   ├── pdf_loader.py         # PDF 文字与表格混合提取引擎
-│   ├── chunker.py            # 分片大小控制与表格边界保持切片器
-│   ├── embedder.py           # API 向量嵌入与维度自探测
-│   ├── retriever.py          # 召回阶段逻辑
-│   ├── reranker.py           # 精排重定位打分器
-│   ├── rag_pipeline.py       # RAG 执行流编排
-│   ├── data_extractor.py     # 正则结合上下文的指标与日期提取器
-│   └── report_generator.py   # 自定义报告生成与 Markdown 切块解析
-├── ui/
-│   ├── __init__.py
-│   ├── theme.py              # 流畅设计 CSS 注入和深浅色模式适配
-│   ├── api_settings.py       # 统一设置面板 UI (包含文档管理与 API 配置)
-│   └── report_generator.py   # 画板与 Copilot 双栏核心 UI 控制
-└── utils/
-    ├── __init__.py
-    ├── paths.py              # 绝对路径配置中心
-    ├── file_io.py            # 鲁棒性读写与原子化文件替换
-    ├── logger.py             # 标准日志记录器
-    └── background_task.py    # 流式后台工作线程封装
+Report QA/
+├── tauri-ui/                   # Tauri 前端应用 (TypeScript + Tailwind CSS)
+│   ├── src/                    # 前端源代码
+│   ├── src-tauri/              # Tauri Rust 后端
+│   ├── index.html              # 入口 HTML
+│   ├── package.json            # Node.js 依赖声明
+│   └── vite.config.ts          # Vite 构建配置
+└── windows-rag-system/         # Python 后端核心
+    ├── requirements.txt        # 项目依赖包声明
+    ├── run.cmd                 # 双击一键启动脚本
+    ├── README.md               # 说明文档
+    ├── config/
+    │   ├── settings.json       # 核心系统设置 (分片、检索阈值、向量模型等)
+    │   ├── api_keys.json       # API 提供商模板配置
+    │   └── api_keys.local.json # 用户配置的本地 API 密钥存储（运行时动态生成，不应提交 git）
+    ├── data/
+    │   ├── documents/          # 默认扫描的源 PDF 文件夹（用户将 PDF 放入此目录）
+    │   ├── uploads/            # UI 手动上传的 PDF 文件存储目录
+    │   ├── reports/            # 用户保存的 Canvas 报告（JSON 格式）
+    │   ├── copilot_history/    # AI 聊天会话历史（JSON 格式）
+    │   ├── vectors/
+    │   │   ├── faiss.index     # FAISS 序列化向量索引文件
+    │   │   └── metadata.pkl    # 序列化的分片元数据映射 (Pickle 格式)
+    │   └── metadata/
+    │       └── doc_index.json  # 文件扫描状态注册表 (哈希值、状态、分片数)
+    ├── core/
+    │   ├── __init__.py
+    │   ├── api_persistence.py  # API 密钥与服务商信息持久化读写
+    │   ├── pdf_loader.py       # PDF 文字与表格混合提取引擎
+    │   ├── chunker.py          # 分片大小控制与表格边界保持切片器
+    │   ├── embedder.py         # API 向量嵌入与维度自探测
+    │   ├── retriever.py        # 召回阶段逻辑
+    │   ├── reranker.py         # 精排重定位打分器
+    │   ├── rag_pipeline.py     # RAG 执行流编排
+    │   ├── data_extractor.py   # 正则结合上下文的指标与日期提取器
+    │   └── report_generator.py # 自定义报告生成与 Markdown 切块解析
+    └── utils/
+        ├── __init__.py
+        ├── paths.py            # 绝对路径配置中心
+        ├── file_io.py          # 鲁棒性读写与原子化文件替换
+        ├── logger.py           # 标准日志记录器
+        └── background_task.py  # 后台工作线程封装
 ```
 
 ---
@@ -104,7 +105,6 @@ windows-rag-system/
 
 ### requirements.txt 配置文件
 ```text
-streamlit>=1.40.0
 pymupdf>=1.24.0
 faiss-cpu>=1.8.0
 numpy>=1.26.0
@@ -115,7 +115,7 @@ packaging
 ```
 
 ### run.cmd 脚本
-为应对用户移动文件夹导致的绝对路径失效，`run.cmd` 必须使用本地 Python `python -m streamlit run app.py` 方式拉起应用，不能直接使用 `streamlit.exe`。
+为应对用户移动文件夹导致的绝对路径失效，`run.cmd` 必须使用本地 Python 方式拉起后端服务。
 ```cmd
 @echo off
 cd /d "%~dp0"
@@ -126,12 +126,6 @@ title Windows RAG System
 echo ============================================
 echo    Windows Local RAG System Launcher
 echo ============================================
-
-if not exist "app.py" (
-    echo [ERROR] app.py not found. Run this from the project root.
-    pause
-    exit /b 1
-)
 
 python --version >nul 2>&1
 if errorlevel 1 (
@@ -148,7 +142,7 @@ if not exist "venv\Scripts\activate.bat" (
 call venv\Scripts\activate
 
 echo [INFO] Resolving Python dependencies...
-python -c "import streamlit" >nul 2>&1
+python -c "import pymupdf" >nul 2>&1
 if errorlevel 1 (
     python -m pip install -r requirements.txt
 )
@@ -159,8 +153,8 @@ if not exist "data\uploads" mkdir "data\uploads"
 if not exist "data\vectors" mkdir "data\vectors"
 if not exist "data\metadata" mkdir "data\metadata"
 
-echo Starting Streamlit App on http://localhost:8501...
-python -m streamlit run app.py
+echo Starting backend server...
+python -m uvicorn main:app
 deactivate
 ```
 
@@ -312,7 +306,7 @@ def file_hash(path: str | Path) -> str:
 ```
 
 ### 5.3 线程级后台任务管理器 (`utils/background_task.py`)
-用于 Streamlit 执行长时间的同步文件夹与重置索引动作，保证前端 UI 在扫描与切片过程中绝不假死。
+用于执行长时间的同步文件夹与重置索引动作，保证前端 UI 在扫描与切片过程中绝不假死。
 ```python
 import threading
 from typing import Callable, Any, Tuple, Dict, Optional
@@ -982,14 +976,14 @@ class DataExtractor:
 
 ---
 
-## 6. Streamlit 界面主题与 Fluent Design 渲染
+## 6. Tauri 界面主题与 Fluent Design 渲染
 
-本系统采用了极具微软 Fluent Design (流畅设计) 风格的现代玻璃质感（Glassmorphism）CSS 覆盖注入方案，适配 Streamlit 的深浅色转换。
+本系统采用了极具微软 Fluent Design (流畅设计) 风格的现代玻璃质感（Glassmorphism）界面方案，基于 Tauri 2.x 桌面应用框架与 TypeScript + Tailwind CSS 构建。
 
-以下为 UI 渲染所用的定制 CSS 主干逻辑（位于 `ui/theme.py`）：
-- **深浅色自适应变量**：`--bg0`, `--bg1`, `--accent`, `--border` 等。
-- **元素覆盖**：隐藏 Streamlit 默认的 Header 和侧边栏多余的折叠按键。
-- **对话框和弹出层特殊适配**：Streamlit 的 `st.dialog` 和 `st.popover` 的底色覆盖。
+以下为 UI 渲染所用的定制样式逻辑（位于 `tauri-ui/src/`）：
+- **深浅色自适应变量**：CSS 变量 `--bg0`, `--bg1`, `--accent`, `--border` 等。
+- **组件覆盖**：自定义组件替代原生 Web 控件，实现 Fluent Design 风格。
+- **对话框和弹出层特殊适配**：Tauri 原生窗口管理与自定义弹出层。
 - **Canvas 卡片视觉效果**：提供三维卡片阴影 `.card` 和高光阴影 `.accent-card`。
 - **Markdown 画板与表格渲染规范**：包裹 `.table-wrap` 的响应式表格布局。
 
@@ -997,20 +991,20 @@ class DataExtractor:
 
 ## 7. UI 交互与控制面板设计蓝图
 
-### 7.1 浮动设置对话框 UI (`ui/api_settings.py`)
-在主页右上角或侧边顶部提供入口，弹出一个统一管理的 `large` 对话框，由两个主 Tab 组成：
+### 7.1 浮动设置对话框 UI (Tauri 前端设置面板)
+在主界面右上角或侧边顶部提供入口，弹出一个统一管理的设置面板，由两个主 Tab 组成：
 - **📁 Document Settings (文档管理)**：
   - 显示当前文档总量、已导入向量数、服务就绪指示灯。
   - 通过单行输入框 + 异步校验，提供多个监控文件夹的管理（添加、清除、彻底重建）。
-  - 内嵌基于 `st.file_uploader` 的单个 PDF 实时导入及切片逻辑。
-  - 显示后台 `BackgroundTask` 执行的进度百分比和 toast 提示。
+  - 内嵌单个 PDF 实时导入及切片逻辑。
+  - 显示后台 `BackgroundTask` 执行的进度百分比和提示。
 - **🔑 API & Model Settings (模型设置)**：
   - **Chat Models Tab**：配置当前使用的 LLM 服务商（如 DeepSeek）以及具体对话模型。
   - **Embeddings Tab**：指定向量服务商、模型名称、以及 Chunker 的 `chunk_size` 和 `chunk_overlap` 两个重要数值。
   - **Reranking Tab**：开启/关闭 Reranker 功能，配置重排模型与基础检索池大小。
   - **API Providers Tab**：增删改第三方兼容 API 的 Base URL，支持展示各渠道的活跃指示灯。
 
-### 7.2 报告画板与 AI 侧边栏 UI (`ui/report_generator.py`)
+### 7.2 报告画板与 AI 侧边栏 UI (Tauri 前端核心界面)
 整个软件的操作界面，布局比例为 `[7, 5]` 两栏：
 - **左侧画板 (Canvas Area - 70% 宽度)**：
   - 顶部显示当前报告的标题输入框及状态。
@@ -1034,7 +1028,7 @@ class DataExtractor:
 2. **启动虚拟环境**：
    在根目录下打开终端，双击或运行 `run.cmd`。
 3. **初始化设置**：
-   - 在弹出的 Streamlit 网页右上角中打开 **⚙️ Settings**。
+   - 在弹出的 Tauri 应用窗口中打开 **⚙️ Settings**。
    - 切换到 **🔑 API & Model Settings** -> **Service Providers**，添加您的 LLM & Embedding 服务端密钥（或写入 `api_keys.local.json`）。
    - 在 **🔤 Embeddings** 标签页中选定嵌入模型并保存，触发第一次探测探测。
 4. **导入文档**：

@@ -1,4 +1,4 @@
-"""Background task runner utility for Streamlit responsiveness."""
+"""Background task runner utility for non-blocking operations."""
 import threading
 from typing import Callable, Any, Tuple, Dict, Optional
 

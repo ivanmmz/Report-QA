@@ -1,6 +1,6 @@
 # 🧠 Windows Local RAG System
 
-A Windows-native AI Document Intelligence System built with Streamlit, FAISS, and bge-m3 embeddings.
+A Windows-native AI Document Intelligence System built with Tauri, FAISS, and bge-m3 embeddings.
 
 ## ✨ Features
 
@@ -10,7 +10,7 @@ A Windows-native AI Document Intelligence System built with Streamlit, FAISS, an
 - **🔍 FAISS Vector Search** — Fast similarity search with metadata filtering
 - **💬 LLM Q&A with Citations** — Chat with your documents, see source references
 - **🤖 AI Report Assistant** — Get AI suggestions to improve your reports
-- **🎨 Windows Fluent Design** — Modern glassmorphism UI in Streamlit
+- **🎨 Windows Fluent Design** — Modern glassmorphism UI in Tauri desktop app
 - **⚡ One-Click Startup** — Launch with `run.cmd`
 
 ## 🚀 Quick Start
@@ -34,9 +34,9 @@ A Windows-native AI Document Intelligence System built with Streamlit, FAISS, an
    - Check Python installation
    - Create a virtual environment
    - Install dependencies
-   - Start the Streamlit app
+   - Start the backend server
 
-3. **Open your browser** at `http://localhost:8501`
+3. **Launch the Tauri frontend** from the `tauri-ui/` directory
 
 ### Manual Setup
 
@@ -52,9 +52,11 @@ venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run app
-streamlit run app.py
+# Run backend server
+python -m uvicorn main:app
 ```
+
+Then launch the Tauri frontend from the `tauri-ui/` directory.
 
 ## 📖 Usage
 
@@ -99,7 +101,6 @@ Go to **📊 Report Assistant**:
 
 ```
 windows-rag-system/
-├── app.py                    # Streamlit entry point
 ├── run.cmd                   # One-click Windows launcher
 ├── requirements.txt          # Python dependencies
 ├── README.md                 # This file
@@ -126,10 +127,6 @@ windows-rag-system/
 ├── llm/
 │   ├── gateway.py            # LLM provider gateway
 │   └── prompts.py            # Prompt templates
-├── ui/
-│   ├── chat_ui.py            # Chat interface
-│   ├── report_chat.py        # Report assistant
-│   └── theme.py              # Fluent Design CSS
 └── utils/
     ├── file_io.py            # File utilities
     └── logger.py             # Logging setup

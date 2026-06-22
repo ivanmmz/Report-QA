@@ -5,7 +5,7 @@
 # 🧠 Windows 本地智能文档 RAG 系统与报告生成画板
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Streamlit](https://img.shields.io/badge/streamlit-1.40.0+-red.svg)](https://streamlit.io/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.x-orange.svg)](https://tauri.app/)
 [![FAISS](https://img.shields.io/badge/FAISS-1.8.0+-green.svg)](https://github.com/facebookresearch/faiss)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -48,12 +48,10 @@
 
 ### 一键启动
 1. **获取代码**：克隆或下载此仓库至本地文件夹（路径中尽量避免中文）。
-2. **启动系统**：在根目录下找到 `windows-rag-system/run.cmd`，**双击运行**。
-   - 脚本会自动检测 Python。
-   - 自动在本地创建虚拟环境 `venv`。
-   - 自动安装依赖包并补全 `data/` 目录结构。
-   - 自动拉起 Streamlit 并打开浏览器页面。
-3. **访问系统**：在浏览器中打开 `http://localhost:8501`。
+2. **启动系统**：在根目录下找到 `tauri-ui/` 目录，按照其中的说明启动 Tauri 前端。
+   - 后端 Python 服务通过 `run.cmd` 启动。
+   - Tauri 前端提供现代化的原生桌面界面。
+3. **访问系统**：启动后自动打开桌面应用窗口。
 
 ---
 
@@ -95,32 +93,34 @@
 ## 📁 目录结构树
 
 ```
-windows-rag-system/
-├── app.py                    # Streamlit Entry (入口路由与初始化)
-├── run.cmd                   # Windows 双击一键启动脚本
-├── requirements.txt          # Python 包版本声明
-├── config/
-│   ├── settings.json         # 向量块大小与重排等设定
-│   └── api_keys.json         # 服务商预设配置模板
-├── core/
-│   ├── api_persistence.py    # 本地 API 密钥持久化逻辑
-│   ├── pdf_loader.py         # PyMuPDF 智能提取段落与表格
-│   ├── chunker.py            # 段落与表格隔离切片器
-│   ├── embedder.py           # 向量转换与维度自动探针
-│   ├── retriever.py          # 向量库相似度匹配
-│   ├── reranker.py           # LLM 对切块进行两阶段精排序
-│   ├── rag_pipeline.py       # RAG 执行流程统筹
-│   ├── data_extractor.py     # 基于正则的指标与日期拾取
-│   └── report_generator.py   # 生成报告与 Markdown 段落归类
-├── ui/
-│   ├── theme.py              # 流畅设计 CSS 注入适配深浅色
-│   ├── api_settings.py       # 浮动设置面板 (包含文档与API配置)
-│   └── report_generator.py   # 双栏画板与 Copilot 助手面板
-└── utils/
-    ├── paths.py              # 相对物理路径自适应定位
-    ├── file_io.py            # 安全的原子级文件存取
-    ├── logger.py             # 运行日志记录
-    └── background_task.py    # Streamlit 后台多线程工具
+Report QA/
+├── tauri-ui/                   # Tauri 前端应用 (TypeScript + Tailwind CSS)
+│   ├── src/                    # 前端源代码
+│   ├── src-tauri/              # Tauri Rust 后端
+│   ├── index.html              # 入口 HTML
+│   ├── package.json            # Node.js 依赖声明
+│   └── vite.config.ts          # Vite 构建配置
+└── windows-rag-system/         # Python 后端核心
+    ├── run.cmd                 # Windows 双击一键启动脚本
+    ├── requirements.txt        # Python 包版本声明
+    ├── config/
+    │   ├── settings.json       # 向量块大小与重排等设定
+    │   └── api_keys.json       # 服务商预设配置模板
+    ├── core/
+    │   ├── api_persistence.py  # 本地 API 密钥持久化逻辑
+    │   ├── pdf_loader.py       # PyMuPDF 智能提取段落与表格
+    │   ├── chunker.py          # 段落与表格隔离切片器
+    │   ├── embedder.py         # 向量转换与维度自动探针
+    │   ├── retriever.py        # 向量库相似度匹配
+    │   ├── reranker.py         # LLM 对切块进行两阶段精排序
+    │   ├── rag_pipeline.py     # RAG 执行流程统筹
+    │   ├── data_extractor.py   # 基于正则的指标与日期拾取
+    │   └── report_generator.py # 生成报告与 Markdown 段落归类
+    └── utils/
+        ├── paths.py            # 相对物理路径自适应定位
+        ├── file_io.py          # 安全的原子级文件存取
+        ├── logger.py           # 运行日志记录
+        └── background_task.py  # 后台多线程工具
 ```
 
 ---

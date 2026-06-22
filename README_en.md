@@ -5,7 +5,7 @@
 # 🧠 Windows Local Intelligent Document RAG System & Report Canvas
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Streamlit](https://img.shields.io/badge/streamlit-1.40.0+-red.svg)](https://streamlit.io/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.x-orange.svg)](https://tauri.app/)
 [![FAISS](https://img.shields.io/badge/FAISS-1.8.0+-green.svg)](https://github.com/facebookresearch/faiss)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -48,12 +48,12 @@ Here is the core dual-column layout of the system in action (Left: Report Canvas
 
 ### Run the Launcher
 1. **Clone/Download** the repository to your local drive.
-2. **Double-click** `windows-rag-system/run.cmd`.
+2. **Double-click** `windows-rag-system/run.cmd` to start the backend.
    - The launcher will verify Python installation.
    - Automatically initialize a local Python virtual environment (`venv`).
    - Pip install packages listed in `requirements.txt` and prepare required subdirectories under `data/`.
-   - Launch Streamlit and automatically open the application in your web browser.
-3. **Access the application** at `http://localhost:8501`.
+3. **Launch the Tauri frontend** from the `tauri-ui/` directory for the desktop application experience.
+4. **Access the application** through the Tauri desktop window.
 
 ---
 
@@ -91,32 +91,34 @@ Here is the core dual-column layout of the system in action (Left: Report Canvas
 ## 📁 Directory Layout
 
 ```
-windows-rag-system/
-├── app.py                    # Streamlit main routing & initialization
-├── run.cmd                   # Windows one-click batch launcher
-├── requirements.txt          # Third-party package declarations
-├── config/
-│   ├── settings.json         # Search and chunk configurations
-│   └── api_keys.json         # API preset structures
-├── core/
-│   ├── api_persistence.py    # Local API key CRUD handler
-│   ├── pdf_loader.py         # PyMuPDF text & table extraction logic
-│   ├── chunker.py            # Chunker preserving table boundaries
-│   ├── embedder.py           # API embedding wrapper & dimension probe
-│   ├── retriever.py          # Dual FAISS search coordinator
-│   ├── reranker.py           # LLM-based精排 scoring mechanism
-│   ├── rag_pipeline.py       # Orchestrates Retrieve & Generation
-│   ├── data_extractor.py     # Regex metric & date extraction
-│   └── report_generator.py   # RAG-based report generation orchestrator
-├── ui/
-│   ├── theme.py              # Theme injection & Fluent CSS
-│   ├── api_settings.py       # Settings dialog panels UI
-│   └── report_generator.py   # Splitted Canvas & Copilot core UI layout
-└── utils/
-    ├── paths.py              # Absolute directory constant resolver
-    ├── file_io.py            # Atomic file writers with retry locks
-    ├── logger.py             # System log recorder
-    └── background_task.py    # Daemon thread wrapper for Streamlit
+Report QA/
+├── tauri-ui/                   # Tauri frontend (TypeScript + Tailwind CSS)
+│   ├── src/                    # Frontend source code
+│   ├── src-tauri/              # Tauri Rust backend
+│   ├── index.html              # Entry HTML
+│   ├── package.json            # Node.js dependencies
+│   └── vite.config.ts          # Vite build configuration
+└── windows-rag-system/         # Python backend core
+    ├── run.cmd                 # Windows one-click batch launcher
+    ├── requirements.txt        # Third-party package declarations
+    ├── config/
+    │   ├── settings.json       # Search and chunk configurations
+    │   └── api_keys.json       # API preset structures
+    ├── core/
+    │   ├── api_persistence.py  # Local API key CRUD handler
+    │   ├── pdf_loader.py       # PyMuPDF text & table extraction logic
+    │   ├── chunker.py          # Chunker preserving table boundaries
+    │   ├── embedder.py         # API embedding wrapper & dimension probe
+    │   ├── retriever.py        # Dual FAISS search coordinator
+    │   ├── reranker.py         # LLM-based reranking scoring mechanism
+    │   ├── rag_pipeline.py     # Orchestrates Retrieve & Generation
+    │   ├── data_extractor.py   # Regex metric & date extraction
+    │   └── report_generator.py # RAG-based report generation orchestrator
+    └── utils/
+        ├── paths.py            # Absolute directory constant resolver
+        ├── file_io.py          # Atomic file writers with retry locks
+        ├── logger.py           # System log recorder
+        └── background_task.py  # Daemon thread wrapper for background tasks
 ```
 
 ---

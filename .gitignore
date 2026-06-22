@@ -1,0 +1,106 @@
+# ============================================
+# Report QA - Git Ignore Configuration
+# ============================================
+
+# --------------------------------------------
+# Python
+# --------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# --------------------------------------------
+# IDE / Editor
+# --------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --------------------------------------------
+# Tauri / Rust
+# --------------------------------------------
+tauri-ui/src-tauri/target/
+tauri-ui/src-tauri/gen/
+*.pdb
+Cargo.lock
+
+# --------------------------------------------
+# Node.js / npm
+# --------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --------------------------------------------
+# Environment Variables
+# --------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# --------------------------------------------
+# API Keys (sensitive - never commit)
+# --------------------------------------------
+config/api_keys.local.json
+opencode.json
+
+# --------------------------------------------
+# Generated Data
+# --------------------------------------------
+windows-rag-system/data/vectors/
+windows-rag-system/data/copilot_history/
+windows-rag-system/data/documents/
+windows-rag-system/data/uploads/
+windows-rag-system/data/metadata/*.json
+
+# --------------------------------------------
+# Logs
+# --------------------------------------------
+*.log
+install.log
+logs/
+
+# --------------------------------------------
+# Claude AI / OpenCode config
+# --------------------------------------------
+.claude/
+.omo/
+
+# --------------------------------------------
+# Misc
+# --------------------------------------------
+*.bak
+*.tmp
+*.temp
+.cache/
