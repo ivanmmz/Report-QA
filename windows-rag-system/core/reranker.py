@@ -24,6 +24,8 @@ class Reranker:
             api_key: API key for the reranker provider.
         """
         self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
         self.client = OpenAI(base_url=base_url, api_key=api_key or "dummy")
 
     def rerank(self, query: str, results: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
@@ -40,6 +42,60 @@ class Reranker:
         if not self.client or len(results) <= top_k:
             return results[:top_k]
 
+        # Detect if this is an Nvidia ranking model
+        is_nvidia = "nvidia" in self.model.lower() or "nvidia" in self.base_url.lower() or "nv-rerank" in self.model.lower()
+
+        if is_nvidia:
+            try:
+                # 1. Automatically resolve the specialized ranking URL
+                if self.base_url.endswith("/v1"):
+                    ranking_url = f"{self.base_url}/ranking"
+                else:
+                    ranking_url = f"{self.base_url}/v1/ranking"
+
+                # 2. Format payload according to Nvidia NIM specifications
+                passages = [{"text": r.get("content", "")} for r in results]
+                payload = {
+                    "model": self.model,
+                    "query": {"text": query},
+                    "passages": passages
+                }
+
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+
+                import requests
+                logger.info(f"Routing to Nvidia ranking URL: {ranking_url} for model {self.model}")
+                response = requests.post(ranking_url, headers=headers, json=payload, timeout=30.0)
+                
+                # If the specialized ranking endpoint is supported, process it
+                if response.status_code == 200:
+                    data = response.json()
+                    rankings = data.get("rankings", [])
+
+                    # Assign rerank_score (logit) to each result
+                    for r in results:
+                        r["rerank_score"] = -99.0
+
+                    for item in rankings:
+                        idx = item.get("index", -1)
+                        logit = item.get("logit", -99.0)
+                        if 0 <= idx < len(results):
+                            results[idx]["rerank_score"] = float(logit)
+                            results[idx]["original_rank"] = idx + 1
+
+                    # Sort by rerank score descending
+                    results.sort(key=lambda x: x.get("rerank_score", -99.0), reverse=True)
+                    logger.info(f"Nvidia ranking successful. Top score: {results[0].get('rerank_score')}")
+                    return results[:top_k]
+                else:
+                    logger.warning(f"Nvidia ranking URL returned status {response.status_code}, falling back to conversational chat")
+            except Exception as e:
+                logger.warning(f"Nvidia ranking failed: {e}, falling back to conversational chat")
+
+        # Fallback to conversational chat-based reranking
         try:
             # Build scoring prompt
             docs_text = "\n\n".join(

@@ -30,6 +30,7 @@ export function Dialog({ open, onClose, children, title, className }: DialogProp
       onClose={onClose}
       className={clsx(
         "backdrop:bg-[var(--dialog-overlay)] bg-transparent border-none p-0",
+        "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 m-0 z-[9999]",
         "rounded-xl overflow-hidden",
         className
       )}

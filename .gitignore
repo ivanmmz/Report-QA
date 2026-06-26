@@ -70,19 +70,18 @@ pnpm-debug.log*
 .env.*.local
 
 # --------------------------------------------
-# API Keys (sensitive - never commit)
+# API Keys & Local History (sensitive - never commit)
 # --------------------------------------------
-config/api_keys.local.json
+**/api_keys.local.json
+**/chat_sessions.json
 opencode.json
 
 # --------------------------------------------
-# Generated Data
+# Generated Data (sensitive & local - never commit)
 # --------------------------------------------
-windows-rag-system/data/vectors/
-windows-rag-system/data/copilot_history/
-windows-rag-system/data/documents/
-windows-rag-system/data/uploads/
-windows-rag-system/data/metadata/*.json
+data/
+windows-rag-system/data/
+1. Report/
 
 # --------------------------------------------
 # Logs

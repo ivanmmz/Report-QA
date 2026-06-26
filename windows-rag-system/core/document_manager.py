@@ -165,7 +165,7 @@ class DocumentManager:
                 new_files.append(f)
             else:
                 current_hash = file_hash(f)
-                if current_hash != self.documents[f].hash:
+                if current_hash != self.documents[f].hash or (self.embedder and self.documents[f].status == "pending"):
                     modified_files.append(f)
         
         deleted_files = list(indexed_files - current_files)
@@ -195,9 +195,6 @@ class DocumentManager:
         Returns:
             Number of chunks indexed.
         """
-        if not self.embedder or not self.vector_store:
-            raise RuntimeError("Stores not initialized. Call initialize_stores first.")
-        
         logger.info(f"Indexing: {file_path}")
         
         try:
@@ -205,7 +202,29 @@ class DocumentManager:
             chunks = self.chunker.chunk_document(doc.text, source=file_path)
             
             if not chunks:
+                # Track the file even with 0 chunks so it shows in the UI
+                self.documents[file_path] = DocumentEntry(
+                    file=file_path,
+                    hash=file_hash(file_path),
+                    status="empty",
+                    timestamp=time.time(),
+                    chunks=0,
+                )
+                self._save_index()
                 return 0
+            
+            # If embedder not available, just track the file with chunk count
+            if not self.embedder or not self.vector_store:
+                self.documents[file_path] = DocumentEntry(
+                    file=file_path,
+                    hash=file_hash(file_path),
+                    status="pending",  # tracked but not embedded
+                    timestamp=time.time(),
+                    chunks=len(chunks),
+                )
+                self._save_index()
+                logger.info(f"Tracked {len(chunks)} chunks from {file_path} (embedder not available)")
+                return len(chunks)
             
             # Prepare metadata
             chunk_texts = [c.content for c in chunks]

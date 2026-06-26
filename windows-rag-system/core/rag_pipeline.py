@@ -63,7 +63,7 @@ class RAGPipeline:
             )
 
         # Build context from retrieved chunks using full chunk content to preserve tables
-        MAX_CONTEXT_CHARS = 30000
+        MAX_CONTEXT_CHARS = 150000
         context_parts = []
         total_chars = 0
 

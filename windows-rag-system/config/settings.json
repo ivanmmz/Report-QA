@@ -1,7 +1,7 @@
 {
   "chunk_size": 4096,
   "chunk_overlap": 500,
-  "top_k": 25,
+  "top_k": 40,
   "embedding_provider": "Nv",
   "embedding_model": "nvidia/nv-embed-v1",
   "rerank_enabled": true,

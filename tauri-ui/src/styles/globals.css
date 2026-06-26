@@ -110,3 +110,83 @@ body {
 }
 .chat-message:hover .msg-copy-btn { opacity: 0.6; }
 .msg-copy-btn:hover { background: rgba(128, 128, 128, 0.15); color: var(--text0); opacity: 1 !important; }
+
+/* Markdown Content Styling */
+.markdown-content h1 {
+  font-size: 1.6em;
+  font-weight: 700;
+  margin: 24px 0 12px;
+  color: var(--text0);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.markdown-content h2 {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 20px 0 10px;
+  color: var(--text0);
+}
+.markdown-content h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 16px 0 8px;
+  color: var(--text0);
+}
+.markdown-content p {
+  margin: 8px 0 12px;
+}
+.markdown-content ul, .markdown-content ol {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+}
+.markdown-content li {
+  margin: 4px 0;
+}
+.markdown-content code {
+  font-family: monospace;
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+.markdown-content pre {
+  background: var(--pre-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+  color: #fff;
+}
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.92rem;
+  border: 1px solid var(--border);
+}
+.markdown-content th {
+  background: var(--bg2);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  color: var(--text0);
+}
+.markdown-content td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  color: var(--text1);
+}
+.markdown-content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.01);
+}
+.markdown-content tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}

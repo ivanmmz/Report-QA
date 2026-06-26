@@ -24,6 +24,15 @@ MODEL_MAX_TOKENS = {
 
 LOCAL_FALLBACK_DIM = 1024
 
+KNOWN_DIMENSIONS = {
+    "nvidia/nv-embed-v1": 4096,
+    "Qwen3-Embedding-8B": 4096,
+    "bge-m3": 1024,
+    "text-embedding-3-large": 3072,
+    "text-embedding-3-small": 1536,
+    "text-embedding-ada-002": 1536,
+}
+
 
 class APIEmbedder:
     """Embedding generator with API-first strategy."""
@@ -43,6 +52,16 @@ class APIEmbedder:
             raise ValueError("Embedding provider base URL is required.")
 
         self.model_name = model_name
+        
+        # Resolve dimension if not provided
+        if not dimension:
+            dimension = KNOWN_DIMENSIONS.get(model_name)
+            if not dimension:
+                for k, v in KNOWN_DIMENSIONS.items():
+                    if k in model_name:
+                        dimension = v
+                        break
+        
         self._declared_dimension = dimension or LOCAL_FALLBACK_DIM
         self._actual_dimension: int | None = None
         self.base_url = base_url.rstrip("/")

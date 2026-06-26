@@ -24,3 +24,10 @@ export interface Provider {
   models: string[];
   isValid: boolean;
 }
+
+export interface RAGConfig {
+  embedding_provider: string;
+  embedding_model: string;
+  rerank_enabled: boolean;
+  rerank_model: string;
+}
