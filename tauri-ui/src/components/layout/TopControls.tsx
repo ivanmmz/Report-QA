@@ -1,6 +1,6 @@
 import { useAppStore } from "../../stores/appStore";
 import { Button } from "../ui/Button";
-import { Settings, Sun, Moon, Trash2 } from "lucide-react";
+import { Settings, Sun, Moon, Trash2, Terminal } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 
 interface TopControlsProps {
@@ -10,13 +10,23 @@ interface TopControlsProps {
 }
 
 export default function TopControls({ isDark, toggleTheme, sidebarWidth = 400 }: TopControlsProps) {
-  const { setShowSettings, setActiveReportContent } = useAppStore();
+  const { setShowSettings, setActiveReportContent, showDebugPanel, setShowDebugPanel } = useAppStore();
 
   return (
     <div
-      className="fixed top-4 z-[9995] flex items-center gap-2"
+      className="fixed top-4 z-[9995] flex items-center gap-2 no-print"
       style={{ right: `${sidebarWidth + 24}px` }}
     >
+      {/* Log Console Debug */}
+      <Button
+        variant={showDebugPanel ? "primary" : "icon"}
+        size="sm"
+        title="Toggle Debug Logs"
+        onClick={() => setShowDebugPanel(!showDebugPanel)}
+      >
+        <Terminal className="w-4 h-4" />
+      </Button>
+
       {/* Clear Canvas Content */}
       <Button
         variant="icon"
@@ -35,7 +45,6 @@ export default function TopControls({ isDark, toggleTheme, sidebarWidth = 400 }:
             }
           } catch (err) {
             console.error("Failed to show native dialog:", err);
-            // Fallback for standard browser testing environments
             if (window.confirm("Are you sure you want to clear the canvas? This action cannot be undone.")) {
               setActiveReportContent("");
             }
@@ -66,3 +75,4 @@ export default function TopControls({ isDark, toggleTheme, sidebarWidth = 400 }:
     </div>
   );
 }
+

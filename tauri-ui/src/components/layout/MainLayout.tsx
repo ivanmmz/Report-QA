@@ -3,6 +3,8 @@ import CopilotSidebar from "./CopilotSidebar";
 import TopControls from "./TopControls";
 import ReportCanvas from "../report/ReportCanvas";
 import SettingsDialog from "../settings/SettingsDialog";
+import { useAppStore } from "../../stores/appStore";
+import { Button } from "../ui/Button";
 
 interface MainLayoutProps {
   isDark: boolean;
@@ -59,10 +61,11 @@ export default function MainLayout({ isDark, toggleTheme }: MainLayoutProps) {
 
       {/* Main Content Area */}
       <main
-        className="flex-1 overflow-y-auto"
+        className="flex-1 flex flex-col h-screen overflow-hidden"
         style={{ paddingRight: `${sidebarWidth}px` }}
       >
-        <div className="p-6">
+        {/* Scrollable Upper Area */}
+        <div className="flex-1 overflow-y-auto p-6 relative">
           {/* Top Controls - Fixed Position */}
           <TopControls
             isDark={isDark}
@@ -78,6 +81,9 @@ export default function MainLayout({ isDark, toggleTheme }: MainLayoutProps) {
           {/* Report History */}
           <ReportHistory />
         </div>
+
+        {/* Debug Console Panel - Bottom Drawer */}
+        <DebugConsolePanel />
       </main>
 
       {/* Drag Handle (Resizer) */}
@@ -97,11 +103,70 @@ export default function MainLayout({ isDark, toggleTheme }: MainLayoutProps) {
 
 function ReportHistory() {
   return (
-    <div className="mt-8">
+    <div className="mt-8 no-print">
       <h3 className="text-heading-3 text-[var(--text0)] mb-4">
         Saved Reports Library
       </h3>
       <p className="text-[var(--text1)]">No saved reports yet.</p>
+    </div>
+  );
+}
+
+function DebugConsolePanel() {
+  const { showDebugPanel, setShowDebugPanel, debugLogs, clearDebugLogs } = useAppStore();
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showDebugPanel && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [debugLogs, showDebugPanel]);
+
+  if (!showDebugPanel) return null;
+
+  return (
+    <div className="border-t border-[var(--border)] bg-[#0c0d12]/95 backdrop-blur-md overflow-hidden flex flex-col h-64 shrink-0 no-print animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[rgba(255,255,255,0.02)] shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#00ff00] animate-pulse" />
+          <span className="text-xs font-semibold text-[var(--text0)] uppercase tracking-wider font-mono">Debug Console Logs</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearDebugLogs}
+            className="h-7 px-2.5 text-xs text-[var(--text2)] hover:text-[#e05555] hover:bg-[rgba(224,85,85,0.08)]"
+          >
+            Clear Logs
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowDebugPanel(false)}
+            className="h-7 px-2.5 text-xs text-[var(--text2)] hover:text-white"
+          >
+            Collapse ▾
+          </Button>
+        </div>
+      </div>
+
+      {/* Logs scrollbox */}
+      <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-[#00ff00] space-y-1 select-text bg-black/40">
+        {debugLogs.length > 0 ? (
+          debugLogs.map((log, index) => (
+            <div key={index} className="leading-relaxed hover:bg-[rgba(0,255,0,0.03)] px-1 rounded whitespace-pre-wrap">
+              {log}
+            </div>
+          ))
+        ) : (
+          <div className="text-[var(--text2)] italic text-center py-8">
+            Console is empty. Perform an action to view logs.
+          </div>
+        )}
+        <div ref={logEndRef} />
+      </div>
     </div>
   );
 }

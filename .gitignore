@@ -103,3 +103,13 @@ logs/
 *.tmp
 *.temp
 .cache/
+引入LightRAG 或 LeanRAG .MD
+其他改进.MD
+
+# --------------------------------------------
+# Security Keys (never commit)
+# --------------------------------------------
+*.key
+*.key.pub
+private_key.pem
+

@@ -239,7 +239,8 @@ Extracted Data Points:
 
 Generate a detailed report with structured sections."""
 
-        answer = self.llm.chat(user_prompt, "", system_prompt)
+
+        answer, _ = self.llm.chat(user_prompt, "", system_prompt)
         sections = self._parse_sections(answer)
 
         return Report(

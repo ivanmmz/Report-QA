@@ -3,6 +3,7 @@ import { create } from "zustand";
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   citations?: Citation[];
   timestamp: Date;
 }
@@ -25,6 +26,8 @@ export interface Provider {
   apiKey: string;
   models: string[];
   isValid: boolean;
+  enabled?: boolean;
+  thinking_intensity?: "Low" | "Medium" | "High";
 }
 
 export interface RAGConfig {
@@ -36,6 +39,17 @@ export interface RAGConfig {
   chunk_overlap: number;
   top_k: number;
   rerank_top_k: number;
+  default_thinking_intensity?: "Low" | "Medium" | "High";
+}
+
+export interface LicenseInfo {
+  is_activated: boolean;
+  is_expired: boolean;
+  license_id: string;
+  edition: string;
+  expire_date: string;
+  permanent: boolean;
+  features: string[];
 }
 
 export interface ChatSession {
@@ -91,6 +105,13 @@ export interface AppState {
   setShowSettings: (value: boolean) => void;
   ragConfig: RAGConfig;
   setRAGConfig: (config: RAGConfig) => void;
+  licenseInfo: LicenseInfo | null;
+  setLicenseInfo: (info: LicenseInfo | null) => void;
+  debugLogs: string[];
+  addDebugLog: (log: string) => void;
+  clearDebugLogs: () => void;
+  showDebugPanel: boolean;
+  setShowDebugPanel: (value: boolean) => void;
 }
 
 // Load persisted state from localStorage
@@ -148,10 +169,16 @@ export const useAppStore = create<AppState>((set) => ({
     }),
   initialized: false,
   setInitialized: (value) => set({ initialized: value }),
-  activeReportTitle: "Untitled Report",
-  activeReportContent: "Start typing or ask Copilot to generate report sections.",
-  setActiveReportTitle: (title) => set({ activeReportTitle: title }),
-  setActiveReportContent: (content) => set({ activeReportContent: content }),
+  activeReportTitle: localStorage.getItem("active_report_title") || "Untitled Report",
+  activeReportContent: localStorage.getItem("active_report_content") || "Start typing or ask Copilot to generate report sections.",
+  setActiveReportTitle: (title) => {
+    localStorage.setItem("active_report_title", title);
+    set({ activeReportTitle: title });
+  },
+  setActiveReportContent: (content) => {
+    localStorage.setItem("active_report_content", content);
+    set({ activeReportContent: content });
+  },
   
   // Chat History State
   chatSessions: finalSessions,
@@ -330,9 +357,22 @@ export const useAppStore = create<AppState>((set) => ({
     chunk_overlap: 500,
     top_k: 25,
     rerank_top_k: 10,
+    default_thinking_intensity: "Medium",
   }),
   setRAGConfig: (config) => {
     localStorage.setItem("rag_config", JSON.stringify(config));
     set({ ragConfig: config });
   },
+  licenseInfo: null,
+  setLicenseInfo: (info) => set({ licenseInfo: info }),
+  debugLogs: [],
+  addDebugLog: (log) =>
+    set((state) => {
+      const timestamp = new Date().toLocaleTimeString();
+      const newLog = `[${timestamp}] ${log}`;
+      return { debugLogs: [...state.debugLogs.slice(-299), newLog] };
+    }),
+  clearDebugLogs: () => set({ debugLogs: [] }),
+  showDebugPanel: false,
+  setShowDebugPanel: (value) => set({ showDebugPanel: value }),
 }));

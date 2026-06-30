@@ -1,9 +1,15 @@
 import { useEffect } from "react";
 import MainLayout from "./components/layout/MainLayout";
+import UpdateBanner from "./components/layout/UpdateBanner";
+import ActivationPage from "./components/layout/ActivationPage";
 import { useAppStore } from "./stores/appStore";
 
 function App() {
-  const { isDark, toggleTheme, providers, ragConfig, chatSessions, chatHistoryPath, setChatSessions, setChatHistoryPath } = useAppStore();
+  const {
+    isDark, toggleTheme, providers, ragConfig, chatSessions,
+    chatHistoryPath, setChatSessions, setChatHistoryPath,
+    licenseInfo, setLicenseInfo
+  } = useAppStore();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
@@ -14,6 +20,10 @@ function App() {
   useEffect(() => {
     const initPath = async () => {
       if (!chatHistoryPath) {
+        if (!(window as any).__TAURI_INTERNALS__) {
+          setChatHistoryPath("dev-browser-config");
+          return;
+        }
         try {
           const { invoke } = await import("@tauri-apps/api/core");
           const defaultPath: string = await invoke("get_default_config_dir");
@@ -30,6 +40,7 @@ function App() {
   // Auto-sync configuration to Python backend on startup / store changes
   useEffect(() => {
     const syncConfig = async () => {
+      if (!(window as any).__TAURI_INTERNALS__) return;
       const config: any = {
         providers: {},
         default_provider: ragConfig.embedding_provider,
@@ -61,6 +72,7 @@ function App() {
   // Load chat history from custom file on startup / path changes
   useEffect(() => {
     const loadHistory = async () => {
+      if (!(window as any).__TAURI_INTERNALS__) return;
       if (!chatHistoryPath) return;
       try {
         const { exists, readTextFile, mkdir } = await import("@tauri-apps/plugin-fs");
@@ -100,6 +112,7 @@ function App() {
   // Save chat history to custom file whenever sessions change
   useEffect(() => {
     const saveHistory = async () => {
+      if (!(window as any).__TAURI_INTERNALS__) return;
       if (!chatHistoryPath) return;
       try {
         const { exists, mkdir, writeTextFile } = await import("@tauri-apps/plugin-fs");
@@ -120,8 +133,58 @@ function App() {
     saveHistory();
   }, [chatSessions, chatHistoryPath]);
 
+  const checkLicenseStatus = async () => {
+    if (!(window as any).__TAURI_INTERNALS__) {
+      console.log("Running in browser dev mode, bypassing offline activation intercept.");
+      setLicenseInfo({
+        is_activated: true,
+        is_expired: false,
+        license_id: "DEV-BROWSER-MODE",
+        edition: "Enterprise",
+        expire_date: "2099-12-31",
+        permanent: true,
+        features: ["PDF_EXPORT", "WORD_EXPORT", "AI", "PLUGIN"]
+      });
+      return;
+    }
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const info = await invoke<any>("check_license");
+      setLicenseInfo(info);
+    } catch (err) {
+      console.error("License check failed:", err);
+      setLicenseInfo({
+        is_activated: false,
+        is_expired: false,
+        license_id: "",
+        edition: "Trial",
+        expire_date: "",
+        permanent: false,
+        features: []
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkLicenseStatus();
+  }, []);
+
+  if (!licenseInfo) {
+    return (
+      <div className="fixed inset-0 bg-[#090b0f] flex items-center justify-center text-[var(--text1)] text-sm font-medium">
+        Verifying software integrity...
+      </div>
+    );
+  }
+
+  if (!licenseInfo.is_activated || licenseInfo.is_expired) {
+    return <ActivationPage onActivated={checkLicenseStatus} />;
+  }
+
   return (
     <div className={isDark ? "dark" : "light"}>
+      <UpdateBanner />
       <MainLayout isDark={isDark} toggleTheme={toggleTheme} />
     </div>
   );

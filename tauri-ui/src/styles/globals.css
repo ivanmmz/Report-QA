@@ -190,3 +190,98 @@ body {
 .markdown-content tr:hover {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* ─── Print Styles Chain ─── */
+@media print {
+  /* 1. Unlock all clamping containers for stream scrolling paging first (Low priority) */
+  html, body, #root, main, div, section {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+  }
+
+  /* 2. Reset outer fullscreen containers and flexboxes (Low priority) */
+  .h-screen, .w-screen, .overflow-hidden, .flex {
+    height: auto !important;
+    width: auto !important;
+    overflow: visible !important;
+    display: block !important; /* fallback flex to standard block for natural block flow */
+    position: relative !important;
+  }
+
+  /* 3. Target report canvas area directly & remove inline padding-right */
+  main {
+    padding: 0 !important;
+    padding-right: 0 !important; /* overrides JavaScript style paddingRight overrides */
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .mt-16 {
+    margin-top: 0 !important;
+  }
+
+  .glass-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* 4. Force print text colors to black for readability on white paper */
+  .markdown-content, .markdown-content td, .markdown-content th, .markdown-content p, .markdown-content li, .markdown-content h1, .markdown-content h2, .markdown-content h3 {
+    color: #000 !important;
+  }
+
+  .markdown-content pre {
+    background: #f4f5f7 !important;
+    border-color: #ddd !important;
+    page-break-inside: avoid;
+  }
+  
+  .markdown-content pre code {
+    color: #000 !important;
+  }
+
+  .markdown-content table {
+    border-color: #ccc !important;
+    page-break-inside: auto;
+  }
+
+  .markdown-content tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .markdown-content th, .markdown-content td {
+    border-color: #ccc !important;
+  }
+
+  /* 5. Hide every non-canvas GUI element and force non-visibility (Highest priority, defined at the very end) */
+  header,
+  aside,
+  button,
+  .fixed,
+  .absolute,
+  [class*="TopControls"],
+  [class*="CopilotSidebar"],
+  [class*="UpdateBanner"],
+  .msg-copy-btn,
+  .dl-btn,
+  .no-print,
+  [class*="no-print"] {
+    display: none !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+}
+

@@ -6,7 +6,8 @@ import { Input } from "../ui/Input";
 import { Tabs, TabPanel } from "../ui/Tabs";
 import {
   FolderOpen, Upload, RefreshCw, Trash2, Plus, Check, Cpu,
-  ChevronDown, ChevronRight, FileText, Settings, ExternalLink,
+  ChevronDown, ChevronRight, FileText, Settings, ExternalLink, Info,
+  Download, Archive, Puzzle, Edit3, ToggleLeft, ToggleRight,
 } from "lucide-react";
 
 export default function SettingsDialog() {
@@ -20,12 +21,16 @@ export default function SettingsDialog() {
         tabs={[
           { id: "documents", label: "Documents", icon: <FolderOpen className="w-4 h-4" /> },
           { id: "api", label: "API & Models", icon: <Cpu className="w-4 h-4" /> },
+          { id: "plugins", label: "Plugins", icon: <Puzzle className="w-4 h-4" /> },
           { id: "others", label: "Others", icon: <Settings className="w-4 h-4" /> },
+          { id: "about", label: "About", icon: <Info className="w-4 h-4" /> },
         ]}
       >
         <TabPanel tabId="documents" activeTab={activeTab}><DocumentSettings /></TabPanel>
         <TabPanel tabId="api" activeTab={activeTab}><APISettings /></TabPanel>
+        <TabPanel tabId="plugins" activeTab={activeTab}><PluginSettings /></TabPanel>
         <TabPanel tabId="others" activeTab={activeTab}><OtherSettings /></TabPanel>
+        <TabPanel tabId="about" activeTab={activeTab}><AboutSettings /></TabPanel>
       </Tabs>
     </Dialog>
   );
@@ -72,6 +77,26 @@ function DocumentSettings() {
       const { invoke } = await import("@tauri-apps/api/core");
       const pdfFiles: { name: string; chunks: number; status: string }[] =
         await invoke("scan_pdf_files", { path: folderPath });
+
+      // Detect if officecli is missing when user has word/excel files
+      const hasPluginRequired = pdfFiles.some(f => f.status === "plugin_required");
+      if (hasPluginRequired) {
+        const confirmDownload = window.confirm(
+          "您上传了 Word/Excel 文档，系统需要下载一个约 15MB 的解析插件以获取最佳排版效果，是否立即下载启用？"
+        );
+        if (confirmDownload) {
+          setSyncResult("Downloading parsing plugin (~15MB)...");
+          try {
+            await invoke("download_officecli");
+            setSyncResult("Plugin installed! Re-scanning documents...");
+            setTimeout(() => handleReindex(folderPath), 1000);
+            return;
+          } catch (dlErr) {
+            setSyncResult(`Failed to download plugin: ${dlErr}`);
+            setTimeout(() => setSyncResult(null), 5000);
+          }
+        }
+      }
 
       setFolders((prev: any[]) =>
         prev.map((f: any) => {
@@ -161,12 +186,19 @@ function DocumentSettings() {
                     {folder.files.length > 0 ? (
                       <div className="max-h-60 overflow-y-auto">
                         {folder.files.map((file: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg1)] hover:bg-[var(--bg2)]">
-                            <div className="flex items-center gap-2 text-sm text-[var(--text1)]">
-                              <FileText className="w-3.5 h-3.5" />
+                          <div key={i} className="flex items-center justify-between px-3 py-1.5 bg-[var(--bg1)] hover:bg-[var(--bg2)] border-b border-[rgba(255,255,255,0.02)]">
+                            <div className="flex items-center gap-2 text-sm text-[var(--text1)] min-w-0">
+                              <FileText className="w-3.5 h-3.5 shrink-0" />
                               <span className="truncate">{file.name}</span>
                             </div>
-                            <span className="text-xs text-[var(--text2)] font-mono">{file.chunks} chunks</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-[var(--text2)] font-mono">{file.chunks} chunks</span>
+                              {file.status === "plugin_required" && (
+                                <span className="text-[10px] bg-[rgba(224,85,85,0.15)] text-[#e05555] px-1.5 py-0.5 rounded border border-[rgba(224,85,85,0.3)]">
+                                  Plugin Missing
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -228,6 +260,7 @@ interface FolderFileInfo {
 function APISettings() {
   const { providers, addProvider, removeProvider, setProviders, ragConfig, setRAGConfig } = useAppStore();
   const [formData, setFormData] = useState({ name: "", baseUrl: "", apiKey: "", models: "" });
+  const [editingName, setEditingName] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<string | null>(null);
   const [defaultConfigPath, setDefaultConfigPath] = useState("Loading...");
 
@@ -253,10 +286,61 @@ function APISettings() {
   const [chunkOverlap, setChunkOverlap] = useState(ragConfig.chunk_overlap);
   const [topK, setTopK] = useState(ragConfig.top_k);
   const [rerankTopK, setRerankTopK] = useState(ragConfig.rerank_top_k);
+  const [defaultThinkingIntensity, setDefaultThinkingIntensity] = useState<"Low" | "Medium" | "High">(ragConfig.default_thinking_intensity || "Medium");
+
+  const handleStartEdit = (p: any) => {
+    setEditingName(p.name);
+    setFormData({
+      name: p.name,
+      baseUrl: p.baseUrl,
+      apiKey: p.apiKey,
+      models: p.models.join("\n")
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingName(null);
+    setFormData({ name: "", baseUrl: "", apiKey: "", models: "" });
+  };
+
+  const toggleProviderEnabled = (name: string) => {
+    const next = providers.map(p =>
+      p.name === name ? { ...p, enabled: p.enabled === false ? true : false } : p
+    );
+    setProviders(next);
+    setTimeout(() => {
+      handleExportToBackend();
+    }, 100);
+  };
 
   const handleSaveProvider = () => {
     if (formData.name && formData.baseUrl) {
-      addProvider({ name: formData.name, baseUrl: formData.baseUrl, apiKey: formData.apiKey, models: formData.models.split("\n").filter(Boolean), isValid: true });
+      const existing = providers.find(p => p.name === formData.name);
+      const isCurrentlyEnabled = existing ? (existing.enabled !== false) : true;
+      
+      const newProvider = {
+        name: formData.name,
+        baseUrl: formData.baseUrl,
+        apiKey: formData.apiKey,
+        models: formData.models.split("\n").filter(Boolean),
+        isValid: true,
+        enabled: isCurrentlyEnabled
+      };
+
+      if (editingName) {
+        // Edit mode
+        const next = providers.map(p => p.name === editingName ? newProvider : p);
+        setProviders(next);
+        setEditingName(null);
+      } else {
+        // Create mode
+        if (providers.some(p => p.name === formData.name)) {
+          alert("Provider Name already exists!");
+          return;
+        }
+        addProvider(newProvider);
+      }
+      
       setFormData({ name: "", baseUrl: "", apiKey: "", models: "" });
       
       // Auto-sync to backend
@@ -280,6 +364,7 @@ function APISettings() {
         base_url: p.baseUrl,
         api_key: p.apiKey,
         models: p.models,
+        enabled: p.enabled !== false,
         description: "",
       };
     });
@@ -326,11 +411,12 @@ function APISettings() {
               apiKey: p.api_key || "",
               models: p.models || [],
               isValid: !!p.api_key && p.api_key !== "dummy",
+              enabled: p.enabled !== false,
             }));
             // Replace all providers (clear + re-populate)
             setProviders(imported);
 
-            // Restore RAG config if embedded
+             // Restore RAG config if embedded
             if (config._rag_config) {
               setRAGConfig(config._rag_config);
               // Sync local state
@@ -338,6 +424,7 @@ function APISettings() {
               setEmbeddingModel(config._rag_config.embedding_model);
               setRerankEnabled(config._rag_config.rerank_enabled);
               setRerankModel(config._rag_config.rerank_model);
+              setDefaultThinkingIntensity(config._rag_config.default_thinking_intensity || "Medium");
             }
 
           } else if (isSettingsJson) {
@@ -351,6 +438,7 @@ function APISettings() {
               chunk_overlap: config.chunk_overlap ?? ragConfig.chunk_overlap,
               top_k: config.top_k ?? ragConfig.top_k,
               rerank_top_k: config.rerank_top_k ?? ragConfig.rerank_top_k,
+              default_thinking_intensity: config.default_thinking_intensity || ragConfig.default_thinking_intensity || "Medium",
             };
             setRAGConfig(rag);
             // Sync local state
@@ -362,6 +450,7 @@ function APISettings() {
             setChunkOverlap(rag.chunk_overlap);
             setTopK(rag.top_k);
             setRerankTopK(rag.rerank_top_k);
+            setDefaultThinkingIntensity(rag.default_thinking_intensity || "Medium");
           } else {
             alert("Unrecognized config format. Expected api_keys.local.json or settings.json");
           }
@@ -384,6 +473,7 @@ function APISettings() {
       chunk_overlap: chunkOverlap,
       top_k: topK,
       rerank_top_k: rerankTopK,
+      default_thinking_intensity: defaultThinkingIntensity,
     };
     setRAGConfig(config);
     
@@ -403,6 +493,7 @@ function APISettings() {
     setChunkOverlap(ragConfig.chunk_overlap);
     setTopK(ragConfig.top_k);
     setRerankTopK(ragConfig.rerank_top_k);
+    setDefaultThinkingIntensity(ragConfig.default_thinking_intensity || "Medium");
   }, [ragConfig]);
 
   return (
@@ -517,18 +608,25 @@ function APISettings() {
         </div>
       </div>
 
-      {/* ── New Provider ── */}
+      {/* ── New / Edit Provider ── */}
       <div className="border border-[var(--border)] rounded-xl p-4">
-        <h4 className="section-label">New Provider</h4>
+        <h4 className="section-label">{editingName ? `Edit Provider (${editingName})` : "New Provider"}</h4>
         <div className="space-y-3 mt-3">
-          <Input label="Provider Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. deepseek-v4" />
+          <Input label="Provider Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. deepseek-v4" disabled={!!editingName} />
           <Input label="Base URL" value={formData.baseUrl} onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })} placeholder="https://api.deepseek.com/v1" />
           <Input label="API Key" type="password" value={formData.apiKey} onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })} placeholder="sk-..." />
           <div className="w-full">
             <label className="block text-sm font-medium text-[var(--text1)] mb-1">Models (one per line)</label>
             <textarea value={formData.models} onChange={(e) => setFormData({ ...formData, models: e.target.value })} rows={3} className="w-full bg-[var(--input-bg)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text0)] resize-y placeholder:text-[var(--text2)] focus:border-[rgba(0,188,242,0.5)] focus:outline-none" placeholder={"deepseek-chat\ndeepseek-coder"} />
           </div>
-          <Button variant="primary" size="sm" onClick={handleSaveProvider} disabled={!formData.name || !formData.baseUrl}><Plus className="w-4 h-4 mr-1" />Add Provider</Button>
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" onClick={handleSaveProvider} disabled={!formData.name || !formData.baseUrl}>
+              {editingName ? "Save Changes" : "Add Provider"}
+            </Button>
+            {editingName && (
+              <Button variant="ghost" size="sm" onClick={handleCancelEdit}>Cancel</Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -536,21 +634,67 @@ function APISettings() {
       <div>
         <h4 className="section-label">Configured Providers</h4>
         <div className="space-y-2 mt-2">
-          {providers.length > 0 ? providers.map((p) => (
-            <div key={p.name} className={`provider-card ${p.isValid ? "ok" : "err"}`}>
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-[var(--text0)]">{p.isValid ? "\u{1F7E2}" : "\u{1F534}"} {p.name}</span>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-semibold ${p.isValid ? "text-[#3ecf8e]" : "text-[#e05555]"}`}>{p.isValid ? "Active" : "Key Missing"}</span>
-                  <button onClick={() => removeProvider(p.name)} className="text-[#e05555] hover:text-[#ff7070]">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+          {providers.length > 0 ? providers.map((p) => {
+            const isEnabled = p.enabled !== false;
+            return (
+              <div key={p.name} className={`provider-card ${p.isValid ? "ok" : "err"} ${!isEnabled ? "opacity-50" : ""}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[var(--text0)]">
+                    {p.isValid && isEnabled ? "\u{1F7E2}" : "\u{1F534}"} {p.name} {!isEnabled && <span className="text-xs text-[var(--text2)] italic">(Disabled)</span>}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={p.thinking_intensity || "Medium"}
+                      onChange={(e) => {
+                        const updated = providers.map(prov => 
+                          prov.name === p.name ? { ...prov, thinking_intensity: e.target.value as any } : prov
+                        );
+                        setProviders(updated);
+                        setTimeout(handleExportToBackend, 100);
+                      }}
+                      className="bg-[var(--input-bg)] border border-[var(--border)] rounded px-2 py-0.5 text-[11px] text-[var(--text0)] focus:outline-none"
+                      style={{ colorScheme: "dark" }}
+                      title="Default Thinking Intensity for this API"
+                    >
+                      <option value="Low" className="bg-[var(--bg1)]">Low</option>
+                      <option value="Medium" className="bg-[var(--bg1)]">Medium</option>
+                      <option value="High" className="bg-[var(--bg1)]">High</option>
+                    </select>
+
+                    <button
+                      onClick={() => toggleProviderEnabled(p.name)}
+                      className="text-[var(--text1)] hover:text-white flex items-center"
+                      title={isEnabled ? "Disable this provider" : "Enable this provider"}
+                    >
+                      {isEnabled ? (
+                        <ToggleRight className="w-5.5 h-5.5 text-[var(--accent)]" />
+                      ) : (
+                        <ToggleLeft className="w-5.5 h-5.5 text-[var(--text2)]" />
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={() => handleStartEdit(p)}
+                      className="text-[var(--text2)] hover:text-[var(--accent)]"
+                      title="Edit this provider"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      onClick={() => removeProvider(p.name)}
+                      className="text-[#e05555] hover:text-[#ff7070]"
+                      title="Remove this provider"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
+                <div className="text-xs text-[var(--text2)] mt-1 font-mono">{p.baseUrl}</div>
+                <div className="text-xs text-[var(--text2)] mt-1">Models: <span className="font-mono">{p.models.join(", ")}</span></div>
               </div>
-              <div className="text-xs text-[var(--text2)] mt-1 font-mono">{p.baseUrl}</div>
-              <div className="text-xs text-[var(--text2)] mt-1">Models: <span className="font-mono">{p.models.join(", ")}</span></div>
-            </div>
-          )) : <p className="text-sm text-[var(--text2)]">No providers configured yet.</p>}
+            );
+          }) : <p className="text-sm text-[var(--text2)]">No providers configured yet.</p>}
         </div>
       </div>
 
@@ -585,11 +729,27 @@ function APISettings() {
 
 /* ─── Others Tab ─── */
 
+// All localStorage keys that are included in settings backup
+const BACKUP_KEYS = [
+  { key: "document_folders",  label: "Document Folders",      group: "folders" },
+  { key: "providers",         label: "API Providers & Keys",   group: "api" },
+  { key: "rag_config",        label: "RAG Configuration",       group: "api" },
+  { key: "prompt_tools",      label: "Prompt Tools",            group: "others" },
+  { key: "chat_history_path", label: "Chat History Save Path",  group: "others" },
+  { key: "theme",             label: "Theme (Dark/Light)",      group: "others" },
+] as const;
+
+type BackupKey = typeof BACKUP_KEYS[number]["key"];
+
 function OtherSettings() {
-  const { chatHistoryPath, setChatHistoryPath } = useAppStore();
+  const { chatHistoryPath, setChatHistoryPath, setProviders, setRAGConfig } = useAppStore();
   const [pathInput, setPathInput] = useState(chatHistoryPath);
   const [saveResult, setSaveResult] = useState<string | null>(null);
   const [defaultConfigPath, setDefaultConfigPath] = useState("Loading...");
+
+  // Partial import modal state
+  const [importPayload, setImportPayload] = useState<Record<string, any> | null>(null);
+  const [selected, setSelected] = useState<Set<BackupKey>>(new Set());
 
   useEffect(() => {
     const fetchPath = async () => {
@@ -604,10 +764,7 @@ function OtherSettings() {
     fetchPath();
   }, []);
 
-  // Update input field when store changes
-  useEffect(() => {
-    setPathInput(chatHistoryPath);
-  }, [chatHistoryPath]);
+  useEffect(() => { setPathInput(chatHistoryPath); }, [chatHistoryPath]);
 
   const handleSavePath = () => {
     if (pathInput.trim()) {
@@ -620,11 +777,7 @@ function OtherSettings() {
   const handleBrowseFolder = async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        defaultPath: chatHistoryPath || undefined
-      });
+      const selected = await open({ directory: true, multiple: false, defaultPath: chatHistoryPath || undefined });
       if (typeof selected === "string") {
         setPathInput(selected);
         setChatHistoryPath(selected);
@@ -636,39 +789,380 @@ function OtherSettings() {
     }
   };
 
+  /* ─── Backup (导出) ─── */
+  const handleExportSettings = async () => {
+    const snapshot: Record<string, any> = {
+      _version: 1,
+      _exportedAt: new Date().toISOString(),
+    };
+    BACKUP_KEYS.forEach(({ key }) => {
+      try {
+        const raw = localStorage.getItem(key);
+        snapshot[key] = raw ? JSON.parse(raw) : null;
+      } catch {
+        snapshot[key] = null;
+      }
+    });
+
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+      const dest = await save({
+        defaultPath: `report-qa-settings-${new Date().toISOString().slice(0,10)}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (dest) {
+        await writeTextFile(dest, JSON.stringify(snapshot, null, 2));
+        setSaveResult("✅ Settings exported successfully");
+        setTimeout(() => setSaveResult(null), 3000);
+      }
+    } catch (err) {
+      setSaveResult(`❌ Export failed: ${err}`);
+      setTimeout(() => setSaveResult(null), 5000);
+    }
+  };
+
+  /* ─── Import (导入) ─── */
+  const handleImportSettings = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const { readTextFile } = await import("@tauri-apps/plugin-fs");
+      const src = await open({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        multiple: false,
+      });
+      if (typeof src !== "string") return;
+
+      const raw = await readTextFile(src);
+      const data = JSON.parse(raw);
+      // Pre-select all keys that exist in the backup file
+      const available = new Set(
+        BACKUP_KEYS.filter(({ key }) => key in data).map(({ key }) => key)
+      ) as Set<BackupKey>;
+      setImportPayload(data);
+      setSelected(available);
+    } catch (err) {
+      setSaveResult(`❌ Import failed: ${err}`);
+      setTimeout(() => setSaveResult(null), 5000);
+    }
+  };
+
+  const handleApplyImport = () => {
+    if (!importPayload) return;
+    selected.forEach((key) => {
+      const val = importPayload[key];
+      if (val !== null && val !== undefined) {
+        localStorage.setItem(key, JSON.stringify(val));
+      }
+    });
+    // Sync Zustand store for live fields
+    if (selected.has("providers") && importPayload.providers) setProviders(importPayload.providers);
+    if (selected.has("rag_config") && importPayload.rag_config) setRAGConfig(importPayload.rag_config);
+    if (selected.has("chat_history_path") && importPayload.chat_history_path)
+      setChatHistoryPath(importPayload.chat_history_path);
+    setImportPayload(null);
+    setSaveResult("✅ Settings imported — restart may be required for some changes");
+    setTimeout(() => setSaveResult(null), 4000);
+  };
+
+  const toggleKey = (key: BackupKey) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
   return (
     <div className="space-y-6 py-2">
+      {/* Chat History Storage */}
       <div className="border border-[var(--border)] rounded-xl p-4 space-y-4">
         <h4 className="section-label text-xs">Chat History Storage</h4>
         <div className="space-y-3">
           <p className="text-xs text-[var(--text2)] leading-relaxed">
-            Configure the physical save path for your permanent Copilot chat history. The history is saved in a <code className="bg-[var(--bg2)] px-1 py-0.5 rounded">chat_sessions.json</code> file.
+            Configure the physical save path for your permanent Copilot chat history.
           </p>
-          
           <div className="flex gap-2">
-            <Input
-              value={pathInput}
-              onChange={(e) => setPathInput(e.target.value)}
-              placeholder="C:\path\to\save\folder"
-              className="flex-1 font-mono text-xs"
-            />
-            <Button variant="ghost" size="sm" onClick={handleBrowseFolder} className="h-[38px] px-3 shrink-0">
-              Browse...
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleSavePath} className="h-[38px] px-4 shrink-0">
-              Save
-            </Button>
+            <Input value={pathInput} onChange={(e) => setPathInput(e.target.value)} placeholder="C:\path\to\save\folder" className="flex-1 font-mono text-xs" />
+            <Button variant="ghost" size="sm" onClick={handleBrowseFolder} className="h-[38px] px-3 shrink-0">Browse...</Button>
+            <Button variant="primary" size="sm" onClick={handleSavePath} className="h-[38px] px-4 shrink-0">Save</Button>
           </div>
-          
-          {saveResult && (
-            <div className="text-xs text-[#00cc6a] font-semibold">{saveResult}</div>
-          )}
-          
+          {saveResult && <div className="text-xs text-[#00cc6a] font-semibold">{saveResult}</div>}
           <p className="text-[11px] text-[var(--text2)]">
             Default: <span className="font-mono bg-[var(--bg2)] px-1 py-0.5 rounded">{defaultConfigPath}</span>
           </p>
         </div>
       </div>
+
+      {/* Settings Backup & Restore */}
+      <div className="border border-[var(--border)] rounded-xl p-4 space-y-3">
+        <h4 className="section-label text-xs flex items-center gap-2">
+          <Archive className="w-3.5 h-3.5" /> Settings Backup &amp; Restore
+        </h4>
+        <p className="text-xs text-[var(--text2)] leading-relaxed">
+          Export all settings (folders, API keys, RAG config, prompt tools) to a single JSON file.
+          Import back on a new machine with selective restore.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={handleExportSettings} id="backup-export-btn">
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Settings
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleImportSettings} id="backup-import-btn">
+            <Upload className="w-3.5 h-3.5 mr-1.5" /> Import Settings
+          </Button>
+        </div>
+        {saveResult && <div className="text-xs text-[#00cc6a] font-semibold">{saveResult}</div>}
+      </div>
+
+      {/* Partial Import Modal */}
+      {importPayload && (
+        <Dialog open title="Import Settings" onClose={() => setImportPayload(null)} className="max-w-sm">
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--text1)]">
+              Select which settings to restore:
+            </p>
+            <div className="space-y-2">
+              {BACKUP_KEYS.filter(({ key }) => key in importPayload).map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(key as BackupKey)}
+                    onChange={() => toggleKey(key as BackupKey)}
+                    className="w-4 h-4 rounded accent-[var(--accent)]"
+                  />
+                  <span className="text-sm text-[var(--text0)] group-hover:text-[var(--accent)]">{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="primary" size="sm" onClick={handleApplyImport} disabled={selected.size === 0}>
+                <Check className="w-3.5 h-3.5 mr-1.5" /> Apply ({selected.size})
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setImportPayload(null)}>Cancel</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }
+
+/* ─── About Tab ─── */
+
+function AboutSettings() {
+  const [version, setVersion] = useState<string>("...");
+  const { licenseInfo, setLicenseInfo, setShowSettings } = useAppStore();
+  const [deactivating, setDeactivating] = useState(false);
+
+  useEffect(() => {
+    import("@tauri-apps/api/app")
+      .then(({ getVersion }) => getVersion())
+      .then(setVersion)
+      .catch(() => setVersion("N/A"));
+  }, []);
+
+  const handleDeactivate = async () => {
+    if (!confirm("Are you sure you want to deactivate and remove license information from this device?")) {
+      return;
+    }
+    setDeactivating(true);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("deactivate_license");
+      setLicenseInfo(null);
+      setShowSettings(false);
+      // Let App.tsx refresh status which redirects to ActivationPage
+      window.location.reload();
+    } catch (err) {
+      alert("Failed to deactivate: " + err);
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
+  const rows: { label: string; value: React.ReactNode }[] = [
+    { label: "Version", value: <span className="font-mono text-[var(--accent)]">v{version}</span> },
+    { label: "Product", value: "Report QA" },
+    { label: "Platform", value: "Windows (Tauri v2)" },
+    {
+      label: "Source",
+      value: (
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            window.open("https://github.com/ivanmmz/Report-QA", "_blank");
+          }}
+          className="text-[var(--accent)] hover:underline flex items-center gap-1"
+        >
+          GitHub <ExternalLink className="w-3 h-3" />
+        </a>
+      ),
+    },
+  ];
+
+  const hasLicense = licenseInfo?.is_activated && !licenseInfo?.is_expired;
+
+  return (
+    <div className="space-y-6 py-2">
+      {/* Logo / title block */}
+      <div className="flex flex-col items-center gap-3 py-4">
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 14,
+            background: "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <FileText className="w-7 h-7 text-white" />
+        </div>
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-[var(--text0)]">Report QA</h3>
+          <p className="text-xs text-[var(--text2)] mt-0.5">RAG-powered document question answering</p>
+        </div>
+      </div>
+
+      {/* Info table */}
+      <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className={`flex items-center justify-between px-4 py-3 text-sm ${
+              i < rows.length - 1 ? "border-b border-[var(--border)]" : ""
+            }`}
+          >
+            <span className="text-[var(--text2)]">{row.label}</span>
+            <span className="text-[var(--text0)]">{row.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* License status */}
+      <div className="border border-[var(--border)] rounded-xl p-4">
+        <h4 className="section-label">License</h4>
+        {hasLicense ? (
+          <div className="mt-3 space-y-4">
+            <div className="grid grid-cols-2 gap-y-2 text-sm text-[var(--text1)] bg-[rgba(255,255,255,0.02)] p-3 rounded-lg border border-[var(--border)]">
+              <div>License ID:</div>
+              <div className="font-mono text-white text-right">{licenseInfo.license_id}</div>
+              <div>Edition:</div>
+              <div className="font-semibold text-[var(--accent)] text-right">{licenseInfo.edition}</div>
+              <div>Expiry Date:</div>
+              <div className="text-white text-right">
+                {licenseInfo.permanent ? "Lifetime / Permanent" : licenseInfo.expire_date}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-2">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[rgba(0,204,106,0.15)] text-[#00cc6a] border border-[rgba(0,204,106,0.3)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00cc6a] inline-block animate-pulse" />
+                Activated &amp; Genuine
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeactivate}
+                disabled={deactivating}
+                className="text-[#e05555] hover:bg-[rgba(224,85,85,0.08)]"
+              >
+                Deactivate Device
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3">
+            <p className="text-xs text-[var(--text2)] leading-relaxed">
+              This software is unlicensed or the license key has expired.
+            </p>
+            <div className="mt-3">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[rgba(224,85,85,0.15)] text-[#e05555] border border-[rgba(224,85,85,0.3)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#e05555] inline-block" />
+                Unlicensed
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Plugins Tab ─── */
+
+function PluginSettings() {
+  const [installed, setInstalled] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const checkStatus = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const isInstalled: boolean = await invoke("check_officecli_installed");
+      setInstalled(isInstalled);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+  }, []);
+
+  const handleInstall = async () => {
+    setLoading(true);
+    setMsg("Downloading OfficeCLI converter plugin (~15MB)...");
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("download_officecli");
+      setInstalled(true);
+      setMsg("✅ Plugin installed and activated successfully!");
+      setTimeout(() => setMsg(null), 4000);
+    } catch (err) {
+      setMsg(`❌ Installation failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 py-2">
+      <div className="border border-[var(--border)] rounded-xl p-4 space-y-4">
+        <h4 className="section-label text-xs flex items-center gap-2">
+          <Puzzle className="w-3.5 h-3.5" /> OfficeCLI Plugin
+        </h4>
+        <p className="text-xs text-[var(--text2)] leading-relaxed">
+          The OfficeCLI plugin converts Word (.docx), Excel (.xlsx), and PowerPoint (.pptx) documents into structured text for high-fidelity RAG ingestion and supports exporting canvas content back into Office files.
+        </p>
+        
+        <div className="flex items-center justify-between bg-[rgba(255,255,255,0.02)] p-3 rounded-lg border border-[var(--border)]">
+          <div className="space-y-1">
+            <div className="text-sm font-medium text-[var(--text0)]">Plugin Status</div>
+            <div className="text-xs text-[var(--text2)]">
+              {installed === null ? "Checking..." : installed ? "Fully active and deployed in app private directory" : "Not installed"}
+            </div>
+          </div>
+          <div>
+            {installed === null ? (
+              <span className="text-xs text-[var(--text2)]">Checking...</span>
+            ) : installed ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-[rgba(0,204,106,0.15)] text-[#00cc6a] border border-[rgba(0,204,106,0.3)]">
+                Active
+              </span>
+            ) : (
+              <Button variant="primary" size="sm" onClick={handleInstall} disabled={loading}>
+                {loading ? "Downloading..." : "Download & Enable"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {msg && <div className="text-xs font-semibold text-[var(--accent)]">{msg}</div>}
+      </div>
+    </div>
+  );
+}
+
+
