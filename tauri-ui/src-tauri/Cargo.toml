@@ -1,0 +1,31 @@
+[package]
+name = "report-qa-tauri"
+version = "0.1.0"
+description = "Report QA - RAG System with Tauri"
+authors = ["Report QA Team"]
+edition = "2021"
+
+[lib]
+name = "report_qa_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+rsa = { version = "0.9.10", features = ["pem", "sha2"] }
+base58 = "0.2.0"
+aes-gcm = "0.11.0"
+sha2 = "0.11.0"
+winreg = "0.56.0"
+base64 = "0.22.1"
+chrono = "0.4.45"
