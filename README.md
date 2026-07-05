@@ -15,7 +15,7 @@ This application features a Microsoft Fluent Design dark theme with native-like 
 
 ## 🎬 Demo Video
 
-<video src="https://github.com/ivanmmz/Report-QA/raw/main/docs/Demo.mp4" width="100%" controls></video>
+![](https://github.com/ivanmmz/Report-QA/raw/main/docs/Demo.mp4)
 
 ---
 

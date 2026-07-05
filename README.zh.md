@@ -15,7 +15,7 @@
 
 ## 🎬 演示视频 (Demo)
 
-<video src="https://github.com/ivanmmz/Report-QA/raw/main/docs/Demo.mp4" width="100%" controls></video>
+![](https://github.com/ivanmmz/Report-QA/raw/main/docs/Demo.mp4)
 
 ---
 
