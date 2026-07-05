@@ -1,0 +1,121 @@
+# ============================================
+# Report QA - Git Ignore Configuration
+# ============================================
+
+# --------------------------------------------
+# Python
+# --------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# --------------------------------------------
+# IDE / Editor
+# --------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --------------------------------------------
+# Tauri / Rust
+# --------------------------------------------
+tauri-ui/src-tauri/target/
+tauri-ui/src-tauri/gen/
+*.pdb
+Cargo.lock
+
+# --------------------------------------------
+# Node.js / npm
+# --------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --------------------------------------------
+# Environment Variables
+# --------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# --------------------------------------------
+# API Keys & Local History (sensitive - never commit)
+# --------------------------------------------
+**/api_keys.local.json
+**/chat_sessions.json
+opencode.json
+
+# --------------------------------------------
+# Generated Data (sensitive & local - never commit)
+# --------------------------------------------
+data/
+windows-rag-system/data/
+1. Report/
+
+# --------------------------------------------
+# Logs
+# --------------------------------------------
+*.log
+install.log
+logs/
+
+# --------------------------------------------
+# Claude AI / OpenCode config
+# --------------------------------------------
+.claude/
+.omo/
+
+# --------------------------------------------
+# Misc
+# --------------------------------------------
+*.bak
+*.tmp
+*.temp
+.cache/
+引入LightRAG 或 LeanRAG .MD
+其他改进.MD
+
+# --------------------------------------------
+# Security Keys (never commit)
+# --------------------------------------------
+*.key
+*.key.pub
+private_key.pem
+
+# --------------------------------------------
+# Project Specific Ignored Folders & Files
+# --------------------------------------------
+2. SG GreenMark requirement/
+**/model_caps.cache.json
+**/config/
