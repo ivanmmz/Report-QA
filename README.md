@@ -15,7 +15,7 @@ This application features a Microsoft Fluent Design dark theme with native-like 
 
 ## 🎬 Demo Video
 
-[![Watch Demo](docs/images/initial_dashboard.png)](docs/Demo.mp4)
+[Watch Demo on YouTube](https://youtu.be/VLMLq1FwVYc?si=4o5Lie32L2jJpf1C)
 
 ---
 

@@ -119,3 +119,5 @@ private_key.pem
 2. SG GreenMark requirement/
 **/model_caps.cache.json
 **/config/
+docs/*.mp4
+docs/*.mkv

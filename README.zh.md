@@ -15,7 +15,7 @@
 
 ## 🎬 演示视频 (Demo)
 
-[![观看演示视频](docs/images/initial_dashboard.png)](docs/Demo.mp4)
+[在 YouTube 观看演示视频](https://youtu.be/VLMLq1FwVYc?si=4o5Lie32L2jJpf1C)
 
 ---
 
