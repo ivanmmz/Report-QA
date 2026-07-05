@@ -209,8 +209,9 @@ def load_pdf(path: str | Path) -> PDFDocument:
     non_empty_tables = [t for t in table_parts if t and t.strip()]
     full_parts = []
     if non_empty_tables:
-        full_parts.append("=== TABLE DATA ===")
-        full_parts.extend(non_empty_tables)
+        for t in non_empty_tables:
+            full_parts.append("=== TABLE DATA ===")
+            full_parts.append(t)
         full_parts.append("=== DOCUMENT TEXT ===")
     full_parts.extend(text_parts)
 

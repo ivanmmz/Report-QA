@@ -113,3 +113,9 @@ logs/
 *.key.pub
 private_key.pem
 
+# --------------------------------------------
+# Project Specific Ignored Folders & Files
+# --------------------------------------------
+2. SG GreenMark requirement/
+**/model_caps.cache.json
+**/config/

@@ -35,6 +35,7 @@ class RAGPipeline:
     def answer(
         self,
         query: str,
+        history: List[Dict[str, str]] = None,
         top_k: int | None = None,
         stream: bool = False,
         canvas_content: str | None = None,
@@ -76,7 +77,7 @@ class RAGPipeline:
         if not results:
             if stream:
                 def _fallback():
-                    yield from self.llm.stream_chat(query, "No specific documents found. Answer based on general knowledge.", intent=intent)
+                    yield from self.llm.stream_chat(query, "No specific documents found. Answer based on general knowledge.", history=history, intent=intent)
                 return _fallback()
             # Construct context from canvas if present
             context = ""
@@ -86,7 +87,7 @@ class RAGPipeline:
                     f"{canvas_content}\n"
                     "--- END OF CURRENT CANVAS CONTENT ---\n\n"
                 )
-            answer, thinking = self.llm.chat(query, context, thinking_intensity=thinking_intensity, intent=intent)
+            answer, thinking = self.llm.chat(query, context, history=history, thinking_intensity=thinking_intensity, intent=intent)
             return RAGAnswer(
                 answer=answer,
                 sources=[],
@@ -122,9 +123,9 @@ class RAGPipeline:
         logger.info(f"Built context: {len(context)} chars from {len(context_parts)} chunks (canvas content included: {bool(canvas_content)})")
 
         if stream:
-            return self.llm.stream_chat(query, context, thinking_intensity=thinking_intensity, intent=intent)
+            return self.llm.stream_chat(query, context, history=history, thinking_intensity=thinking_intensity, intent=intent)
 
-        answer, thinking = self.llm.chat(query, context, thinking_intensity=thinking_intensity, intent=intent)
+        answer, thinking = self.llm.chat(query, context, history=history, thinking_intensity=thinking_intensity, intent=intent)
 
         logger.info(f"LLM answer: {len(answer)} chars, preview={answer[:80] if answer else 'EMPTY!'}")
 

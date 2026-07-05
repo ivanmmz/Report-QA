@@ -51,6 +51,7 @@ function App() {
           base_url: p.baseUrl,
           api_key: p.apiKey,
           models: p.models,
+          enabled: p.enabled !== false,
           description: "",
         };
       });
@@ -59,7 +60,7 @@ function App() {
 
       try {
         const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("save_api_keys", { config_json: json });
+        await invoke("save_api_keys", { configJson: json });
         console.log("Auto-synced API keys and settings to Python backend.");
       } catch (err) {
         console.error("Failed to auto-sync config to Python backend:", err);
@@ -68,6 +69,30 @@ function App() {
 
     syncConfig();
   }, [providers, ragConfig]);
+
+  // Listen to background Python logs and add them to debug console
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    const setupListener = async () => {
+      if (!(window as any).__TAURI_INTERNALS__) return;
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        const { addDebugLog } = useAppStore.getState();
+        const sub = await listen<string>("python-log", (event) => {
+          addDebugLog(event.payload);
+        });
+        unlisten = sub;
+      } catch (err) {
+        console.error("Failed to setup python-log event listener:", err);
+      }
+    };
+    setupListener();
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, []);
 
   // Load chat history from custom file on startup / path changes
   useEffect(() => {

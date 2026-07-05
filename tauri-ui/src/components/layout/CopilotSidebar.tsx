@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppStore, Message } from "../../stores/appStore";
 import { Button } from "../ui/Button";
-import { Send, Plus, Clock, Wrench, Square, Paperclip, AlertTriangle, FileText } from "lucide-react";
+import { Send, Plus, Clock, Wrench, Square, Paperclip, AlertTriangle, FileText, ArrowDown } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function CopilotSidebar({ width = 400 }: { width?: number }) {
   const { 
@@ -34,6 +36,9 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
   const [selModel, setSelModel] = useState<string>("");
   const [selThinking, setSelThinking] = useState<"Low" | "Medium" | "High">(ragConfig.default_thinking_intensity || "Medium");
   const [attachments, setAttachments] = useState<string[]>([]);
+  const [streamedContent, setStreamedContent] = useState("");
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const handleSelectAttachments = async () => {
     try {
@@ -67,7 +72,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
     } else {
       setSelProvider("");
     }
-  }, [providers, selProvider]);
+  }, [providers]);
 
   useEffect(() => {
     const curProv = providers.find(p => p.name === selProvider);
@@ -84,9 +89,9 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
     if (curProv && curProv.thinking_intensity) {
       setSelThinking(curProv.thinking_intensity);
     } else {
-      setSelThinking("Medium");
+      setSelThinking(ragConfig.default_thinking_intensity || "Medium");
     }
-  }, [selProvider, providers]);
+  }, [selProvider, providers, ragConfig.default_thinking_intensity]);
 
   // Tools management local state
   const [editingToolId, setEditingToolId] = useState<string | null>(null);
@@ -108,9 +113,28 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
     }
   }, [inputValue]);
 
+  // Auto-scroll to bottom only when the user is already at the bottom.
+  // This lets the user scroll up to read history without being yanked back down.
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  };
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [copilotMessages]);
+    if (isAtBottom) {
+      scrollToBottom("smooth");
+    }
+  }, [copilotMessages, streamedContent]);
+
+  // Track whether the user is near the bottom of the scroll container.
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 80; // px from bottom considered "at bottom"
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    setIsAtBottom(atBottom);
+  };
 
   const handleStopGeneration = () => {
     abortRef.current = true;
@@ -131,18 +155,72 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
     setInputValue("");
     setAttachments([]);
     setIsTyping(true);
+    setStreamedContent("");
     abortRef.current = false;
 
     addDebugLog(`[INVOKE] query_rag starting. query: "${queryText}" (provider: ${selProvider || "default"}, model: ${selModel || "default"}, thinking: ${selThinking}, attachments: ${currentAttachments.length} files)`);
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const resp: { answer: string; thinking?: string | null; sources: any[] } = await invoke("query_rag", {
+      const { invoke, Channel } = await import("@tauri-apps/api/core");
+      let fullAnswer = "";
+      let fullThinking = "";
+      let doneReceived = false;
+
+      const channel = new Channel();
+      channel.onmessage = (event: any) => {
+        if (abortRef.current) return;
+        if (event.type === "token") {
+          fullAnswer += event.content || "";
+          setStreamedContent(fullAnswer);
+        } else if (event.type === "done") {
+          doneReceived = true;
+          fullAnswer = event.answer || fullAnswer;
+          fullThinking = event.thinking || "";
+          const assistantMessage: Message = {
+            role: "assistant",
+            content: fullAnswer,
+            thinking: fullThinking || undefined,
+            citations: (event.sources || []).map((s: any) => ({
+              source: s.source,
+              score: s.score,
+              snippet: s.content,
+            })),
+            timestamp: new Date(),
+          };
+          addCopilotMessage(assistantMessage);
+          addDebugLog(`[SUCCESS] query_rag finished. answer=${fullAnswer.length} chars`);
+          const extractedCanvas = extractCanvasContent(fullAnswer);
+          addDebugLog(`[CANVAS_EXTRACT] extracted=${extractedCanvas ? `YES (${extractedCanvas.length} chars)` : 'NO'}`);
+          if (extractedCanvas) {
+            setActiveReportContent(extractedCanvas);
+            addDebugLog(`[UI_SYNC] Applied canvas content (${extractedCanvas.length} chars).`);
+          }
+          setStreamedContent("");
+        } else if (event.type === "error") {
+          addDebugLog(`[ERROR] Stream error: ${event.error}`);
+          const errorMessage: Message = {
+            role: "assistant",
+            content: `Error: ${event.error}`,
+            timestamp: new Date(),
+          };
+          addCopilotMessage(errorMessage);
+          setStreamedContent("");
+        }
+      };
+
+      const activeSession = chatSessions.find(s => s.id === activeSessionId);
+      const history = activeSession 
+        ? activeSession.messages.map(msg => ({ role: msg.role, content: msg.content }))
+        : [];
+
+      await invoke("query_rag", {
         query: queryText,
+        history,
         provider: selProvider || null,
         model: selModel || null,
         thinkingIntensity: selThinking || null,
         attachments: currentAttachments.length > 0 ? currentAttachments : null,
-        canvasContent: (activeReportContent && activeReportContent !== "Start typing or ask Copilot to generate report sections.") ? activeReportContent : null
+        canvasContent: (activeReportContent && activeReportContent !== "Start typing or ask Copilot to generate report sections.") ? activeReportContent : null,
+        onEvent: channel,
       });
 
       if (abortRef.current) {
@@ -150,37 +228,19 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
         return;
       }
 
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: resp.answer,
-        thinking: resp.thinking || undefined,
-        citations: resp.sources.map((s: any) => ({
-          source: s.source,
-          score: s.score,
-          snippet: s.content,
-        })),
-        timestamp: new Date(),
-      };
-      addCopilotMessage(assistantMessage);
-      addDebugLog(`[SUCCESS] query_rag finished successfully. Found ${resp.sources.length} documents matching query.`);
-
-      // Auto-apply canvas content to active canvas
-      const extractedCanvas = extractCanvasContent(resp.answer);
-      addDebugLog(`[CANVAS_EXTRACT] answer length=${resp.answer.length}, snippet=${resp.answer.slice(0, 80).replace(/\n/g,'↵')}, extracted=${extractedCanvas ? `YES (${extractedCanvas.length} chars)` : 'NO'}`);
-      if (extractedCanvas) {
-        setActiveReportContent(extractedCanvas);
-        addDebugLog(`[UI_SYNC] Extracted and applied canvas content (${extractedCanvas.length} chars) to canvas.`);
+      if (!doneReceived) {
+        addDebugLog(`[WARN] query_rag completed but no 'done' event was received.`);
       }
     } catch (err) {
       if (abortRef.current) return;
       addDebugLog(`[ERROR] query_rag command failed: ${err}`);
-
       const errorMessage: Message = {
         role: "assistant",
         content: `Error: ${err}`,
         timestamp: new Date(),
       };
       addCopilotMessage(errorMessage);
+      setStreamedContent("");
     } finally {
       if (!abortRef.current) {
         setIsTyping(false);
@@ -198,11 +258,21 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
   };
 
   const extractCanvasContent = (text: string): string | null => {
-    // Handle both LF and CRLF line endings, and optional whitespace before closing ```
-    let match = text.match(/```markdown-canvas\r?\n([\s\S]*?)\r?\n\s*```/);
-    if (match) return match[1];
+    // The model may (incorrectly) emit multiple markdown-canvas blocks, e.g. when a
+    // continuation restarts the document. Collect every complete block and prefer the
+    // LAST one, since later blocks contain the most complete version of the document.
+    const blockRegex = /```markdown-canvas\r?\n([\s\S]*?)\r?\n\s*```/g;
+    const blocks: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = blockRegex.exec(text)) !== null) {
+      blocks.push(m[1]);
+    }
+    if (blocks.length > 0) {
+      // Return the last complete block.
+      return blocks[blocks.length - 1];
+    }
     // Greedy fallback: match from opening to the LAST ``` in the string
-    match = text.match(/```markdown-canvas\r?\n([\s\S]*)```/);
+    let match = text.match(/```markdown-canvas\r?\n([\s\S]*)```/);
     if (match) return match[1].replace(/\r?\n\s*$/, '');
     // Super-greedy fallback for truncated output (missing closing backticks)
     match = text.match(/```markdown-canvas\r?\n([\s\S]*)$/);
@@ -284,7 +354,11 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
 
       {/* View Switcher Container */}
       {activeView === "chat" ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-3 relative"
+        >
         {copilotMessages.length === 0 && (
           <div className="text-center text-[var(--text2)] mt-20">
             <p>No messages. Ask me to refine, extract tables, or write report sections!</p>
@@ -298,8 +372,8 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
               key={idx}
               className={`chat-message ${msg.role === "user" ? "user" : ""}`}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
                   {/* Thinking block — collapsed by default */}
                   {msg.thinking && (
                     <details className="mb-2 group">
@@ -310,15 +384,20 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
                       <pre className="mt-1.5 text-[10px] font-mono leading-relaxed text-[var(--text2)] bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.06)] rounded-md p-2.5 whitespace-pre-wrap overflow-x-auto max-h-60 overflow-y-auto">{msg.thinking}</pre>
                     </details>
                   )}
-                  <p className="text-[var(--text0)] text-sm whitespace-pre-wrap">
-                    {msg.content}
-                  </p>
+                  <div className="markdown-content text-[var(--text0)] text-sm leading-relaxed">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  </div>
                   
                   {/* Citations list */}
                   {msg.citations && msg.citations.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.06)] space-y-1">
-                      <p className="text-[10px] uppercase tracking-wider text-[var(--text2)] font-semibold">Sources:</p>
-                      <div className="flex flex-wrap gap-1">
+                    <details className="mt-2 pt-2 border-t border-[rgba(255,255,255,0.06)] group">
+                      <summary className="cursor-pointer text-[10px] font-mono text-[var(--text2)] hover:text-[var(--accent)] select-none flex items-center gap-1 list-none">
+                        <span className="transition-transform group-open:rotate-90 inline-block">▶</span>
+                        <span className="uppercase tracking-wider font-semibold">Sources ({msg.citations.length})</span>
+                      </summary>
+                      <div className="flex flex-wrap gap-1 mt-1.5 animate-fade-in">
                         {msg.citations.map((cit, cIdx) => (
                           <span 
                             key={cIdx} 
@@ -329,7 +408,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
                           </span>
                         ))}
                       </div>
-                    </div>
+                    </details>
                   )}
 
                   {/* Apply / Force-apply to Canvas button. */}
@@ -419,13 +498,32 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
 
         {isTyping && (
           <div className="chat-message">
-            <p className="text-[var(--text2)] text-sm animate-pulse">
-              Copilot is thinking...
-            </p>
+            {streamedContent ? (
+              <div className="text-sm text-[var(--text1)] whitespace-pre-wrap">
+                {streamedContent}
+              </div>
+            ) : (
+              <p className="text-[var(--text2)] text-sm animate-pulse">
+                Copilot is thinking...
+              </p>
+            )}
           </div>
         )}
 
         <div ref={messagesEndRef} />
+
+        {!isAtBottom && (
+          <button
+            onClick={() => {
+              setIsAtBottom(true);
+              scrollToBottom("smooth");
+            }}
+            className="sticky bottom-3 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center w-9 h-9 rounded-full bg-[var(--bg1)] border border-[var(--border)] shadow-lg hover:bg-[var(--bg2)] text-[var(--text1)] transition-colors"
+            title="Jump to latest"
+          >
+            <ArrowDown className="w-4 h-4" />
+          </button>
+        )}
       </div>
       ) : activeView === "history" ? (
         /* History Panel View */
@@ -655,7 +753,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
               <Button
                 variant="ghost"
                 onClick={handleSelectAttachments}
-                className="flex items-center justify-center shrink-0 rounded-lg hover:bg-[rgba(255,255,255,0.04)] text-[var(--text1)] hover:text-white"
+                className="flex items-center justify-center shrink-0 rounded-lg llm-icon-btn"
                 style={{ padding: 0, width: "36px", height: "36px" }}
                 title="Attach files (PDF, Word, Excel, images, etc.)"
               >
@@ -692,7 +790,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
             <div className="relative flex-1">
               <button
                 onClick={() => { setOpenP(!openP); setOpenM(false); setOpenT(false); }}
-                className="w-full flex items-center justify-between bg-[var(--bg2)] hover:bg-[var(--border)] border border-[var(--border)] rounded-md px-2.5 py-1.5 text-[var(--text1)] hover:text-white transition-colors text-left"
+                className="w-full flex items-center justify-between border rounded-md px-2.5 py-1.5 transition-colors text-left llm-dropdown-trigger"
               >
                 <span className="truncate">{selProvider || "Provider"}</span>
                 <span className="text-[10px] text-[var(--text2)]">▾</span>
@@ -704,7 +802,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
                       <button
                         key={p.name}
                         onClick={() => { setSelProvider(p.name); setOpenP(false); }}
-                        className="w-full text-left px-2.5 py-1.5 hover:bg-[var(--bg2)] text-xs text-[var(--text1)] hover:text-white"
+                        className="w-full text-left px-2.5 py-1.5 text-xs llm-dropdown-option"
                       >
                         {p.name}
                       </button>
@@ -720,7 +818,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
             <div className="relative flex-1">
               <button
                 onClick={() => { setOpenM(!openM); setOpenP(false); setOpenT(false); }}
-                className="w-full flex items-center justify-between bg-[var(--bg2)] hover:bg-[var(--border)] border border-[var(--border)] rounded-md px-2.5 py-1.5 text-[var(--text1)] hover:text-white transition-colors text-left"
+                className="w-full flex items-center justify-between border rounded-md px-2.5 py-1.5 transition-colors text-left llm-dropdown-trigger"
               >
                 <span className="truncate">{selModel || "Model"}</span>
                 <span className="text-[10px] text-[var(--text2)]">▾</span>
@@ -732,7 +830,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
                       <button
                         key={m}
                         onClick={() => { setSelModel(m); setOpenM(false); }}
-                        className="w-full text-left px-2.5 py-1.5 hover:bg-[var(--bg2)] text-xs text-[var(--text1)] hover:text-white"
+                        className="w-full text-left px-2.5 py-1.5 text-xs llm-dropdown-option"
                       >
                         {m}
                       </button>
@@ -748,7 +846,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
             <div className="relative flex-1">
               <button
                 onClick={() => { setOpenT(!openT); setOpenP(false); setOpenM(false); }}
-                className="w-full flex items-center justify-between bg-[var(--bg2)] hover:bg-[var(--border)] border border-[var(--border)] rounded-md px-2.5 py-1.5 text-[var(--text1)] hover:text-white transition-colors text-left"
+                className="w-full flex items-center justify-between border rounded-md px-2.5 py-1.5 transition-colors text-left llm-dropdown-trigger"
               >
                 <span className="truncate">{selThinking}</span>
                 <span className="text-[10px] text-[var(--text2)]">▾</span>
@@ -759,7 +857,7 @@ export default function CopilotSidebar({ width = 400 }: { width?: number }) {
                     <button
                       key={t}
                       onClick={() => { setSelThinking(t); setOpenT(false); }}
-                      className="w-full text-left px-2.5 py-1.5 hover:bg-[var(--bg2)] text-xs text-[var(--text1)] hover:text-white"
+                      className="w-full text-left px-2.5 py-1.5 text-xs llm-dropdown-option"
                     >
                       {t}
                     </button>

@@ -135,27 +135,33 @@ class DocumentManager:
                 self.index_file(f)
         self._save_index()
 
-    def scan_folder(self) -> List[str]:
-        """Scan all selected folders for PDF files.
+    def scan_folder(self, folder_path: str | None = None) -> List[str]:
+        """Scan all selected folders (or a specific one) for PDF files.
 
         Returns:
             List of PDF file paths.
         """
         all_files = []
-        for folder in self.selected_folders:
+        folders_to_scan = [folder_path] if folder_path else self.selected_folders
+        for folder in folders_to_scan:
             if folder and Path(folder).is_dir():
                 files = list_files(folder, extensions=[".pdf"])
                 all_files.extend([str(f) for f in files])
         return list(dict.fromkeys(all_files))
 
-    def detect_changes(self) -> Dict[str, List[str]]:
+    def detect_changes(self, folder_path: str | None = None) -> Dict[str, List[str]]:
         """Detect new, modified, and deleted files.
 
         Returns:
             Dict with keys 'new', 'modified', 'deleted'.
         """
-        current_files = set(self.scan_folder())
-        indexed_files = set(self.documents.keys())
+        current_files = set(self.scan_folder(folder_path))
+        
+        if folder_path:
+            resolved_folder = str(Path(folder_path).resolve())
+            indexed_files = set(k for k in self.documents.keys() if k.startswith(resolved_folder))
+        else:
+            indexed_files = set(self.documents.keys())
         
         new_files = []
         modified_files = []
@@ -262,11 +268,12 @@ class DocumentManager:
             logger.error(f"Failed to index {file_path}: {e}")
             return 0
 
-    def index_all(self, force_reindex: bool = False) -> Dict[str, Any]:
+    def index_all(self, force_reindex: bool = False, folder_path: str | None = None) -> Dict[str, Any]:
         """Index all files in selected folder.
 
         Args:
             force_reindex: Reindex even if already indexed.
+            folder_path: Limit to this folder if specified.
 
         Returns:
             Dict with keys:
@@ -274,21 +281,30 @@ class DocumentManager:
               "failed_files"  — list of file paths that failed to index
               "total_indexed" — total chunks indexed across all files
               "total_files"   — number of files with at least 1 chunk indexed
-            Backward-compat: "indexed" and "files" keys mirror total_indexed/files.
         """
         results = {}
         failed_files = []
 
-        if not self.selected_folder:
+        if folder_path:
+            if not Path(folder_path).is_dir():
+                return {"results": {}, "failed_files": [], "total_indexed": 0, "total_files": 0}
+        elif not self.selected_folder:
             return {"results": {}, "failed_files": [], "total_indexed": 0, "total_files": 0}
 
-        changes = self.detect_changes()
+        changes = self.detect_changes(folder_path)
         files_to_index = changes["new"] + changes["modified"]
 
         if force_reindex:
-            files_to_index = self.scan_folder()
-            self.vector_store.clear()
-            self.documents = {}
+            files_to_index = self.scan_folder(folder_path)
+            if folder_path:
+                resolved_folder = str(Path(folder_path).resolve())
+                to_remove = [k for k in self.documents if k.startswith(resolved_folder)]
+                for k in to_remove:
+                    del self.documents[k]
+                self._rebuild_from_index()
+            else:
+                self.vector_store.clear()
+                self.documents = {}
 
         for f in files_to_index:
             count = self.index_file(f)
@@ -312,17 +328,20 @@ class DocumentManager:
             "total_files": total_files,
         }
 
-    def sync(self) -> Dict[str, Any]:
+    def sync(self, folder_path: str | None = None) -> Dict[str, Any]:
         """Full sync: detect changes and index.
 
         Returns:
             Summary dict with status, indexed counts, and failed file list.
         """
-        if not self.selected_folder:
+        if folder_path:
+            if not Path(folder_path).is_dir():
+                return {"status": "no_folder", "indexed": 0, "failed_files": []}
+        elif not self.selected_folder:
             return {"status": "no_folder", "indexed": 0, "failed_files": []}
 
-        changes = self.detect_changes()
-        result = self.index_all()
+        changes = self.detect_changes(folder_path)
+        result = self.index_all(folder_path=folder_path)
 
         return {
             "status": "success" if not result["failed_files"] else "partial",

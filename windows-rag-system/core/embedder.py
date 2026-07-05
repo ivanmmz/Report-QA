@@ -238,15 +238,24 @@ class APIEmbedder:
         return final
 
     def _embed_api(self, texts: List[str]) -> np.ndarray:
-        """Attempt embedding via remote API with retry and per-chunk fallback.
-
-        Retries transient errors (429/5xx) up to 3 times with backoff.
-        Falls back to one-chunk-at-a-time if batch request fails with
-        a token-limit error.
+        """Attempt embedding via remote API with batching, retry, and per-chunk fallback.
 
         Returns:
             Numpy array of shape (n_texts, dimension).
         """
+        # Batch texts to prevent Payload Too Large (413) or Token Limit (400) errors
+        batch_size = 16
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i + batch_size]
+            batch_embs = self._embed_batch_api(batch_texts)
+            all_embeddings.extend(batch_embs)
+            
+        return np.array(all_embeddings, dtype=np.float32)
+
+    def _embed_batch_api(self, texts: List[str]) -> np.ndarray:
+        """Attempt embedding a single batch via remote API with retry and per-chunk fallback."""
         import time
         headers = {
             "Content-Type": "application/json",
@@ -277,9 +286,10 @@ class APIEmbedder:
                     except Exception:
                         pass
 
-                    if status == 400 and "token" in (e.response.text or "").lower():
+                    # Fall back to per-chunk if token limit (400), payload too large (413), or server errors (500/502/503/504)
+                    if (status == 400 and "token" in (e.response.text or "").lower()) or status in (413, 500, 502, 503, 504):
                         logger.warning(
-                            f"Token limit at {endpoint} with batch size {len(texts)}, "
+                            f"Limit reached (HTTP {status}) at {endpoint} with batch size {len(texts)}, "
                             f"falling back to per-chunk embedding"
                         )
                         return self._embed_one_by_one(texts, endpoint)
@@ -330,19 +340,45 @@ class APIEmbedder:
 
     def _embed_one_by_one(self, texts: List[str], endpoint: str) -> np.ndarray:
         """Fallback: embed each text individually to work around token limits."""
+        import time
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
         all_embeddings = []
-        for text in texts:
+        for idx, text in enumerate(texts):
             payload = {"model": self.model_name, "input": text}
-            with httpx.Client(timeout=120.0) as client:
-                r = client.post(endpoint, headers=headers, json=payload)
-                r.raise_for_status()
-                data = r.json()
-            emb = self._parse_embedding_response(data, 1)
-            all_embeddings.append(emb[0])
+            last_err = None
+            for attempt in range(3):
+                try:
+                    with httpx.Client(timeout=120.0) as client:
+                        r = client.post(endpoint, headers=headers, json=payload)
+                        r.raise_for_status()
+                        data = r.json()
+                    emb = self._parse_embedding_response(data, 1)
+                    all_embeddings.append(emb[0])
+                    break
+                except httpx.HTTPStatusError as e:
+                    status = e.response.status_code
+                    if status in (429, 500, 502, 503, 504) and attempt < 2:
+                        wait = 2 ** attempt
+                        logger.warning(
+                            f"HTTP {status} at {endpoint} during one-by-one (attempt {attempt + 1}/3) on chunk {idx}, "
+                            f"retrying in {wait}s"
+                        )
+                        time.sleep(wait)
+                        continue
+                    last_err = e
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        wait = 2 ** attempt
+                        time.sleep(wait)
+                        continue
+                    last_err = e
+                    break
+            if last_err:
+                raise last_err
         return np.array(all_embeddings, dtype=np.float32)
 
     def _parse_embedding_response(self, data: dict, expected_count: int) -> List[List[float]]:

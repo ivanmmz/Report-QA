@@ -23,6 +23,8 @@ export interface Provider {
   apiKey: string;
   models: string[];
   isValid: boolean;
+  enabled?: boolean;
+  thinking_intensity?: "Low" | "Medium" | "High";
 }
 
 export interface RAGConfig {

@@ -48,7 +48,7 @@ function DocumentSettings() {
       return [];
     }
   });
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncingFolder, setSyncingFolder] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
   // Persist folders on change
@@ -58,8 +58,10 @@ function DocumentSettings() {
 
   const handleAddFolder = () => {
     if (folderPath && !folders.some((f: any) => f.path === folderPath)) {
-      setFolders([...folders, { path: folderPath, expanded: false, files: [] }]);
+      const newPath = folderPath;
+      setFolders([...folders, { path: newPath, expanded: false, files: [] }]);
       setFolderPath("");
+      handleReindex(newPath);
     }
   };
 
@@ -72,9 +74,53 @@ function DocumentSettings() {
   };
 
   const handleReindex = async (folderPath: string) => {
-    setIsSyncing(true);
+    setSyncingFolder(folderPath);
     try {
       const { invoke } = await import("@tauri-apps/api/core");
+
+      if (folderPath === "") {
+        let totalFilesScanned = 0;
+        for (const folder of folders) {
+          try {
+            setSyncingFolder(folder.path);
+            const pdfFiles: { name: string; chunks: number; status: string }[] =
+              await invoke("scan_pdf_files", { path: folder.path });
+
+            const hasPluginRequired = pdfFiles.some(f => f.status === "plugin_required");
+            if (hasPluginRequired) {
+              const confirmDownload = window.confirm(
+                `文件夹 ${folder.path} 包含 Word/Excel 文档，系统需要下载解析插件以获取最佳效果，是否立即下载？`
+              );
+              if (confirmDownload) {
+                setSyncResult("Downloading parsing plugin (~15MB)...");
+                await invoke("download_officecli");
+                setSyncResult("Plugin installed! Re-scanning...");
+                const rescannedFiles: { name: string; chunks: number; status: string }[] =
+                  await invoke("scan_pdf_files", { path: folder.path });
+                pdfFiles.splice(0, pdfFiles.length, ...rescannedFiles);
+              }
+            }
+
+            setFolders((prev: any[]) =>
+              prev.map((f: any) => {
+                if (f.path !== folder.path) return f;
+                const files: FolderFileInfo[] = pdfFiles.map((entry) => ({
+                  name: entry.name,
+                  chunks: entry.chunks,
+                  status: entry.status,
+                }));
+                return { ...f, expanded: true, files };
+              })
+            );
+            totalFilesScanned += pdfFiles.length;
+          } catch (folderErr) {
+            console.error(`Failed to scan folder ${folder.path}:`, folderErr);
+          }
+        }
+        setSyncResult(`Re-indexed all folders (total ${totalFilesScanned} files)`);
+        return;
+      }
+
       const pdfFiles: { name: string; chunks: number; status: string }[] =
         await invoke("scan_pdf_files", { path: folderPath });
 
@@ -110,12 +156,12 @@ function DocumentSettings() {
         })
       );
       setSyncResult(
-        `Re-indexed ${pdfFiles.length} file(s) from ${folderPath || "all folders"}`
+        `Re-indexed ${pdfFiles.length} file(s) from ${folderPath}`
       );
     } catch (err) {
       setSyncResult(`Failed to scan folder: ${err}`);
     } finally {
-      setIsSyncing(false);
+      setSyncingFolder(null);
       setTimeout(() => setSyncResult(null), 3000);
     }
   };
@@ -170,8 +216,8 @@ function DocumentSettings() {
                     <Button variant="ghost" size="sm" onClick={() => handleOpenInExplorer(folder.path)} title="Open folder in Explorer">
                       <ExternalLink className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleReindex(folder.path)} disabled={isSyncing} title="Re-index this folder">
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                    <Button variant="ghost" size="sm" onClick={() => handleReindex(folder.path)} disabled={syncingFolder !== null} title="Re-index this folder">
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingFolder === folder.path ? "animate-spin" : ""}`} />
                       <span className="ml-1 text-xs">Re-index</span>
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleRemoveFolder(folder.path)} title="Remove folder">
@@ -215,9 +261,9 @@ function DocumentSettings() {
 
       {/* Global sync */}
       <div className="flex gap-2">
-        <Button variant="primary" size="sm" onClick={() => handleReindex("")} disabled={isSyncing || folders.length === 0}>
-          <RefreshCw className={`w-4 h-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
-          {isSyncing ? "Syncing..." : "Sync All"}
+        <Button variant="primary" size="sm" onClick={() => handleReindex("")} disabled={syncingFolder !== null || folders.length === 0}>
+          <RefreshCw className={`w-4 h-4 mr-1 ${syncingFolder !== null ? "animate-spin" : ""}`} />
+          {syncingFolder !== null ? "Syncing..." : "Sync All"}
         </Button>
       </div>
 
@@ -319,16 +365,20 @@ function APISettings() {
       const isCurrentlyEnabled = existing ? (existing.enabled !== false) : true;
       
       const newProvider = {
-        name: formData.name,
-        baseUrl: formData.baseUrl,
-        apiKey: formData.apiKey,
-        models: formData.models.split("\n").filter(Boolean),
+        name: formData.name.trim(),
+        baseUrl: formData.baseUrl.trim(),
+        apiKey: formData.apiKey.trim(),
+        models: formData.models.split("\n").map(m => m.trim()).filter(Boolean),
         isValid: true,
         enabled: isCurrentlyEnabled
       };
 
       if (editingName) {
         // Edit mode
+        if (formData.name !== editingName && providers.some(p => p.name === formData.name)) {
+          alert("Provider Name already exists!");
+          return;
+        }
         const next = providers.map(p => p.name === editingName ? newProvider : p);
         setProviders(next);
         setEditingName(null);
@@ -374,7 +424,7 @@ function APISettings() {
 
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("save_api_keys", { config_json: json });
+      await invoke("save_api_keys", { configJson: json });
       setSaveResult("Successfully saved configuration to RAG backend!");
       setTimeout(() => setSaveResult(null), 3000);
     } catch (err) {
@@ -612,7 +662,7 @@ function APISettings() {
       <div className="border border-[var(--border)] rounded-xl p-4">
         <h4 className="section-label">{editingName ? `Edit Provider (${editingName})` : "New Provider"}</h4>
         <div className="space-y-3 mt-3">
-          <Input label="Provider Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. deepseek-v4" disabled={!!editingName} />
+          <Input label="Provider Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. deepseek-v4" />
           <Input label="Base URL" value={formData.baseUrl} onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })} placeholder="https://api.deepseek.com/v1" />
           <Input label="API Key" type="password" value={formData.apiKey} onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })} placeholder="sk-..." />
           <div className="w-full">

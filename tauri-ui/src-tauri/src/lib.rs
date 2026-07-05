@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::collections::HashMap;
 use tauri::Manager;
+use tauri::Emitter;
 
 mod license;
 
@@ -77,24 +78,53 @@ async fn scan_pdf_files(app_handle: tauri::AppHandle, path: String) -> Result<Ve
         }
         cmd.stdout(std::process::Stdio::piped());
         cmd.stderr(std::process::Stdio::piped());
-        match cmd.output() {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if !output.status.success() {
-                    eprintln!("[sync_index] FAILED (exit {}):\nstdout: {}\nstderr: {}",
-                        output.status.code().unwrap_or(-1), stdout, stderr);
-                } else {
-                    println!("[sync_index] OK:\n{}", stdout);
+        match cmd.spawn() {
+            Ok(mut child) => {
+                use std::io::{BufRead, BufReader};
+                
+                let stdout = child.stdout.take().map(BufReader::new);
+                let app_handle_clone = app_handle.clone();
+                if let Some(mut reader) = stdout {
+                    std::thread::spawn(move || {
+                        let mut line = String::new();
+                        while let Ok(n) = reader.read_line(&mut line) {
+                            if n == 0 { break; }
+                            let trimmed = line.trim_end().to_string();
+                            let _ = app_handle_clone.emit("python-log", format!("[Python] {}", trimmed));
+                            line.clear();
+                        }
+                    });
+                }
+
+                let stderr = child.stderr.take().map(BufReader::new);
+                let app_handle_clone_err = app_handle.clone();
+                if let Some(mut reader) = stderr {
+                    std::thread::spawn(move || {
+                        let mut line = String::new();
+                        while let Ok(n) = reader.read_line(&mut line) {
+                            if n == 0 { break; }
+                            let trimmed = line.trim_end().to_string();
+                            let _ = app_handle_clone_err.emit("python-log", format!("[Python ERR] {}", trimmed));
+                            line.clear();
+                        }
+                    });
+                }
+
+                match child.wait() {
+                    Ok(status) => {
+                        let _ = app_handle.emit("python-log", format!("[Python] Process exited with status: {}", status));
+                    }
+                    Err(e) => {
+                        let _ = app_handle.emit("python-log", format!("[Python ERR] Process wait failed: {}", e));
+                    }
                 }
             }
             Err(e) => {
-                eprintln!("[sync_index] Failed to spawn Python: {}", e);
+                let _ = app_handle.emit("python-log", format!("[Python ERR] Failed to spawn Python: {}", e));
             }
         }
     } else {
-        eprintln!("[sync_index] Python or script not found at project root {:?}: python={} script={}",
-            root, python_path.exists(), script_path.exists());
+        let _ = app_handle.emit("python-log", format!("[Python ERR] Python or script not found at project root"));
     }
 
     // 2. Load the updated doc_index.json
@@ -159,33 +189,40 @@ async fn scan_pdf_files(app_handle: tauri::AppHandle, path: String) -> Result<Ve
 }
 
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct CitationEntry {
-    source: String,
-    score: f64,
-    page: u32,
-    #[serde(rename = "snippet")]
+#[derive(Clone, serde::Serialize)]
+struct StreamEvent {
+    #[serde(rename = "type")]
+    event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    answer: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sources: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+struct ChatMessage {
+    role: String,
     content: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct QueryResponse {
-    answer: String,
-    #[serde(default)]
-    thinking: Option<String>,
-    sources: Vec<CitationEntry>,
-}
-
-/// Invokes the Python RAG pipeline to query context-based answers.
+/// Invokes the Python RAG pipeline and streams tokens back via a Tauri Channel.
 #[tauri::command]
 async fn query_rag(
     query: String,
+    history: Option<Vec<ChatMessage>>,
     provider: Option<String>,
     model: Option<String>,
     thinking_intensity: Option<String>,
     attachments: Option<Vec<String>>,
     canvas_content: Option<String>,
-) -> Result<QueryResponse, String> {
+    on_event: tauri::ipc::Channel<StreamEvent>,
+) -> Result<(), String> {
     let root = find_project_root().unwrap_or_else(|| std::path::PathBuf::from("."));
     let python_path = root.join("windows-rag-system/venv/Scripts/python.exe");
     let script_path = root.join("windows-rag-system/query_rag.py");
@@ -197,6 +234,7 @@ async fn query_rag(
     let mut cmd = std::process::Command::new(&python_path);
     cmd.arg(&script_path);
     cmd.arg("--stdin");
+    cmd.arg("--stream");
 
     cmd.stdin(std::process::Stdio::piped());
     cmd.stdout(std::process::Stdio::piped());
@@ -204,11 +242,13 @@ async fn query_rag(
 
     let payload = serde_json::json!({
         "query": query,
+        "history": history,
         "provider": provider,
         "model": model,
         "thinking": thinking_intensity,
         "attachments": attachments,
-        "canvas_content": canvas_content
+        "canvas_content": canvas_content,
+        "stream": true
     });
 
     let mut child = match cmd.spawn() {
@@ -223,21 +263,52 @@ async fn query_rag(
         }
     }
 
-    match child.wait_with_output() {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if !output.status.success() {
-                return Err(format!("Python RAG execution failed (exit {}):\nstdout: {}\nstderr: {}",
-                    output.status.code().unwrap_or(-1), stdout, stderr));
-            }
-            match serde_json::from_str::<QueryResponse>(&stdout) {
-                Ok(resp) => Ok(resp),
-                Err(e) => Err(format!("Failed to parse Python RAG output: {}\nRaw output: {}", e, stdout)),
-            }
+    use std::io::{BufRead, BufReader};
+    let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
+    let reader = BufReader::new(stdout);
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("Failed to read stdout line: {}", e))?;
+        if line.trim().is_empty() {
+            continue;
         }
-        Err(e) => Err(format!("Failed to run Python RAG process: {}", e)),
+        let val: serde_json::Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let event_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+
+        if event_type == "error" {
+            let error_msg = val.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error").to_string();
+            let _ = on_event.send(StreamEvent {
+                event_type: "error".to_string(),
+                content: None,
+                answer: None,
+                thinking: None,
+                sources: None,
+                error: Some(error_msg),
+            });
+            let _ = child.wait();
+            return Ok(());
+        }
+
+        let _ = on_event.send(StreamEvent {
+            event_type: event_type.clone(),
+            content: val.get("content").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            answer: val.get("answer").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            thinking: val.get("thinking").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            sources: val.get("sources").cloned().and_then(|v| v.as_array().map(|a| a.clone())),
+            error: None,
+        });
+
+        if event_type == "done" {
+            break;
+        }
     }
+
+    let _ = child.wait();
+    Ok(())
 }
 
 /// Saves the API provider configuration JSON directly to the Python backend.

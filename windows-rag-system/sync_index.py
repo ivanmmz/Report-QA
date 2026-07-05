@@ -81,7 +81,7 @@ def run_sync(folder_path=None):
         print("WARNING: No valid API provider configured. Files will be tracked but not embedded.")
     
     print("Running sync...")
-    result = doc_manager.sync()
+    result = doc_manager.sync(folder_path)
     print(f"Sync result: {result}")
 
 if __name__ == "__main__":

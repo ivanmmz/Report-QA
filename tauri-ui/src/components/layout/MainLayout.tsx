@@ -125,9 +125,9 @@ function DebugConsolePanel() {
   if (!showDebugPanel) return null;
 
   return (
-    <div className="border-t border-[var(--border)] bg-[#0c0d12]/95 backdrop-blur-md overflow-hidden flex flex-col h-64 shrink-0 no-print animate-fade-in">
+    <div className="border-t border-[var(--border)] bg-[var(--bg1)] backdrop-blur-md overflow-hidden flex flex-col h-64 shrink-0 no-print animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[rgba(255,255,255,0.02)] shrink-0 select-none">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border)] bg-[var(--bg2)] shrink-0 select-none">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-[#00ff00] animate-pulse" />
           <span className="text-xs font-semibold text-[var(--text0)] uppercase tracking-wider font-mono">Debug Console Logs</span>
@@ -137,7 +137,7 @@ function DebugConsolePanel() {
             variant="ghost"
             size="sm"
             onClick={clearDebugLogs}
-            className="h-7 px-2.5 text-xs text-[var(--text2)] hover:text-[#e05555] hover:bg-[rgba(224,85,85,0.08)]"
+            className="h-7 px-2.5 text-xs text-[var(--text1)] hover:text-[#e05555] hover:bg-[rgba(224,85,85,0.08)]"
           >
             Clear Logs
           </Button>
@@ -145,7 +145,7 @@ function DebugConsolePanel() {
             variant="ghost"
             size="sm"
             onClick={() => setShowDebugPanel(false)}
-            className="h-7 px-2.5 text-xs text-[var(--text2)] hover:text-white"
+            className="h-7 px-2.5 text-xs text-[var(--text1)] hover:text-[var(--text0)] hover:bg-[var(--bg2)]"
           >
             Collapse ▾
           </Button>
@@ -153,10 +153,10 @@ function DebugConsolePanel() {
       </div>
 
       {/* Logs scrollbox */}
-      <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-[#00ff00] space-y-1 select-text bg-black/40">
+      <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-[#1b815a] dark:text-[#00ff00] space-y-1 select-text bg-[var(--bg0)]/40 dark:bg-black/40">
         {debugLogs.length > 0 ? (
           debugLogs.map((log, index) => (
-            <div key={index} className="leading-relaxed hover:bg-[rgba(0,255,0,0.03)] px-1 rounded whitespace-pre-wrap">
+            <div key={index} className="leading-relaxed hover:bg-[rgba(0,255,0,0.02)] dark:hover:bg-[rgba(0,255,0,0.03)] px-1 rounded whitespace-pre-wrap">
               {log}
             </div>
           ))

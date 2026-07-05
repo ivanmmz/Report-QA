@@ -5,6 +5,7 @@ from openai import OpenAI
 
 from utils.logger import setup_logger
 from utils.file_io import read_json
+from llm.model_caps import get_capabilities
 from utils.paths import API_KEYS_LOCAL_PATH, API_KEYS_PATH
 
 logger = setup_logger("llm_gateway")
@@ -26,6 +27,26 @@ class LLMGateway:
         self.temperature = 0.3
         self.max_tokens = 8192
         self.client = None
+
+        # If the default_model is an embedding/rerank model it can't be used
+        # for chat - scan enabled providers for the first usable chat model.
+        _NON_CHAT = ("embed", "rerank", "rank", "bge", "gte", "e5-")
+        if any(kw in self.model.lower() for kw in _NON_CHAT):
+            providers = self.config.get("providers", {})
+            for pname, pconf in providers.items():
+                if not pconf.get("enabled", True):
+                    continue
+                models_raw = pconf.get("models", "")
+                model_list = models_raw if isinstance(models_raw, list) else models_raw.split()
+                for m in model_list:
+                    if not any(kw in m.lower() for kw in _NON_CHAT):
+                        self.provider = pname
+                        self.model = m
+                        logger.info(f"Auto-selected chat model: {pname}/{m}")
+                        break
+                else:
+                    continue
+                break
         self._init_client()
 
     def _load_config(self, primary: str, fallback: str) -> Dict[str, Any]:
@@ -54,6 +75,19 @@ class LLMGateway:
             config["providers"]["openai"]["api_key"] = env_key
         
         return config
+
+    def _provider_overrides(self):
+        """Return per-model capability overrides for the current provider, if any.
+
+        Reads providers[<name>].model_overrides from the config so users can
+        manually pin reasoning/max_output for a model that the registry gets
+        wrong. Returns None when no overrides are configured.
+        """
+        if not self.provider:
+            return None
+        pconf = self.config.get("providers", {}).get(self.provider, {})
+        ov = pconf.get("model_overrides")
+        return ov if isinstance(ov, dict) and ov else None
 
     def _init_client(self) -> None:
         """Initialize OpenAI-compatible client."""
@@ -129,6 +163,29 @@ class LLMGateway:
         "概要", "梗概", "大意",
     ]
 
+    # Sub-intent keyword lists for modify_canvas routing.
+    # These steer the decision between targeted surgical edits, section-scoped
+    # rewrites, and full-document transformations (translate / restructure).
+    SURGICAL_EDIT_KEYWORDS = [
+        # Chinese: small targeted changes
+        "改成", "替换为", "改为", "修改", "修正", "改正", "插入", "删除",
+        "添加一行", "去掉", "改掉", "换掉", "更新",
+        # English: surgical indicators (must be specific to avoid false match)
+        "fix the", "change the", "replace the", "update the",
+        "insert ", "remove ", "delete ", "add a ", "fix ",
+        "append a", "prepend a",
+    ]
+    WHOLE_TRANSFORM_KEYWORDS = [
+        # Chinese: full-document transformations
+        "翻译", "全文翻译", "整篇翻译", "整篇", "重写", "重构",
+        "全面修改", "整体修改", "全部改写", "全文改写", "格式化全部",
+        # English: whole-doc indicators
+        "translate the whole", "translate this document",
+        "rewrite the entire", "rewrite this document",
+        "restructure the", "reformat all", "convert all",
+        "translate to", "rewrite the whole",
+    ]
+
     def classify_intent(self, query: str, canvas_content: str | None) -> str:
         """Classify user intent.
 
@@ -137,7 +194,7 @@ class LLMGateway:
             - 'read_canvas'  : user wants to read/summarize the canvas doc
             - 'search_kb'    : user wants to query the knowledge base
         """
-        if not canvas_content or not self.client:
+        if not self.client:
             return "search_kb"
 
         query_lower = query.lower()
@@ -179,12 +236,13 @@ class LLMGateway:
         # Short preview (first/last 400 chars) so the LLM has enough context
         # to disambiguate. The keyword heuristics above already cover the
         # obvious cases; this LLM call resolves the genuinely ambiguous ones.
-        preview = canvas_content.strip()
+        canvas_str = canvas_content or ""
+        preview = canvas_str.strip()
         if len(preview) > 800:
             preview = preview[:400] + "\n... [truncated] ...\n" + preview[-400:]
         user_msg = (
             f"User query: {query}\n\n"
-            f"Current canvas preview (first/last 400 chars, {len(canvas_content)} total):\n"
+            f"Current canvas preview (first/last 400 chars, {len(canvas_str)} total):\n"
             f"---BEGIN CANVAS---\n{preview}\n---END CANVAS---"
         )
 
@@ -228,8 +286,84 @@ class LLMGateway:
 
         return "search_kb"
 
+    def _scan_sub_intent(self, query: str) -> str | None:
+        """Quick rule-based sub-intent scan. Returns one of the three sub-intent
+        strings or None if rules are inconclusive."""
+        import re as _re
+        q = query.lower()
 
-    def chat(self, query: str, context: str, system_prompt: str | None = None, thinking_intensity: str | None = None, intent: str = "search_kb") -> tuple[str, str | None]:
+        # 1. whole_transform keywords
+        for kw in self.WHOLE_TRANSFORM_KEYWORDS:
+            if kw in q:
+                return "whole_transform"
+
+        # 2. section-level rewrite: query mentions a section number + section verb
+        sec_pat = _re.search(r'\b§?\s*[1-9]\b|第[一二三四五六七八九1-9]章|section\s+\d', q, _re.IGNORECASE)
+        sec_verb = any(v in q for v in ["重写", "润色", "改写", "rewrite", "polish", "更新该节", "更新本节", "rewrite section", "rewrite this section"])
+        if sec_pat and sec_verb:
+            return "section_rewrite"
+
+        # 3. surgical edit keywords
+        for kw in self.SURGICAL_EDIT_KEYWORDS:
+            if kw in q:
+                return "surgical_edit"
+
+        return None
+
+    def sub_classify_modify_intent(self, query: str, canvas_content: str) -> str:
+        """Refine a 'modify_canvas' intent into one of three sub-intents:
+
+        - 'surgical_edit'   small targeted change (fix a value, add a row, …)
+        - 'section_rewrite' rewrite a single identified section
+        - 'whole_transform' full-document transformation (translate, restructure, …)
+        """
+        if not self.client:
+            logger.info("sub-intent: whole_transform (no client)")
+            return "whole_transform"
+
+        # Rule layer
+        ruled = self._scan_sub_intent(query)
+        if ruled:
+            logger.info(f"sub-intent: {ruled} (keyword match)")
+            return ruled
+
+        # LLM fallback — same calling pattern as classify_intent
+        import re as _re
+        sp = (
+            "You are a routing classifier for a document-editing app. "
+            "Classify the user's query into EXACTLY one of three tokens:\n"
+            "1. 'surgical_edit' — the user wants to change a specific value, "
+            "row, word, or line (e.g. fix a typo, change May's number, add a column).\n"
+            "2. 'section_rewrite' — the user wants to rewrite, polish, or "
+            "reformat a single named/referenced section.\n"
+            "3. 'whole_transform' — the user wants a full-document change: "
+            "translate, restructure, rewrite everything, convert all.\n\n"
+            "Reply with EXACTLY one token: surgical_edit / section_rewrite / whole_transform."
+        )
+        msgs = [{"role": "system", "content": sp}, {"role": "user", "content": f"Query: {query}"}]
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model, messages=msgs,
+                temperature=0.0, max_tokens=20,
+            )
+            raw = resp.choices[0].message.content
+            if not raw:
+                raw = getattr(resp.choices[0].message, "reasoning_content", None)
+            if raw:
+                txt = raw.strip().lower()
+                for t in ("surgical_edit", "section_rewrite", "whole_transform"):
+                    if t in txt:
+                        logger.info(f"sub-intent: {t} (LLM)")
+                        return t
+        except Exception as e:
+            logger.error(f"sub-intent LLM classify failed: {e}")
+
+        # Safe default
+        logger.info("sub-intent: whole_transform (fallback)")
+        return "whole_transform"
+
+
+    def chat(self, query: str, context: str, history: List[Dict[str, str]] = None, system_prompt: str | None = None, thinking_intensity: str | None = None, intent: str = "search_kb") -> tuple[str, str | None]:
         """Send chat completion request.
 
         Args:
@@ -384,23 +518,24 @@ class LLMGateway:
 
         system_prompt += cot_instruction
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
+        if history:
+            for h in history:
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
 
         kwargs = {}
-        is_openai_reasoning = self.model and (
-            "o1" in self.model.lower() or 
-            "o3-mini" in self.model.lower()
-        )
+        caps = get_capabilities(self.model, self._provider_overrides())
+        is_reasoning = caps["reasoning"]
+        # Never request more output tokens than the model supports.
+        effective_max = min(self.max_tokens, caps["max_output"])
 
-        if is_openai_reasoning:
+        if is_reasoning:
             kwargs["reasoning_effort"] = ti
-            kwargs["max_completion_tokens"] = self.max_tokens
+            kwargs["max_completion_tokens"] = effective_max
         else:
             kwargs["temperature"] = self.temperature
-            kwargs["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = effective_max
 
         MAX_CONTINUATIONS = 3
         continuations = 0
@@ -439,6 +574,25 @@ class LLMGateway:
                         thinking = extracted_think
                     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
                     
+                # During continuation, strip instruction/reasoning leak phrases
+                # that the model may emit into the document body.
+                if continuations > 0 and content:
+                    _leak_patterns = [
+                        r"The user wants me to continue.*?(?:\n|$)",
+                        r"Looking at my previous response.*?(?:\n|$)",
+                        r"Let me continue.*?(?:\n|$)",
+                        r"I need to continue.*?(?:\n|$)",
+                        r"continue from where.*?(?:\n|$)",
+                        r"where I left off.*?(?:\n|$)",
+                        r"The last text was:.*?(?:\n```|\n|$)",
+                        r"I was in the middle of.*?(?:\n|$)",
+                        r"Let me continue exactly.*?(?:\n|$)",
+                        r"resume writing.*?(?:\n|$)",
+                        r"continuing inside the SAME.*?(?:\n|$)",
+                    ]
+                    for _pat in _leak_patterns:
+                        content = re.sub(_pat, "", content, flags=re.IGNORECASE).strip("\n")
+                
                 if continuations > 0 and "```markdown-canvas" in content:
                     logger.warning("Model restarted the document instead of continuing. Aborting auto-continuation.")
                     # Revert full_content to before this chunk
@@ -457,9 +611,15 @@ class LLMGateway:
                     if full_thinking:
                         assistant_text += f"<think>\n{full_thinking}\n</think>\n"
                     assistant_text += full_content
+                    # Temporarily close an unclosed markdown-canvas fence so the model sees a
+                    # well-formed assistant turn and does not leak continuation instructions.
+                    if "```markdown-canvas" in assistant_text:
+                        fence_count = assistant_text.count("```")
+                        if fence_count % 2 != 0:
+                            assistant_text += "\n```"
                     
                     messages.append({"role": "assistant", "content": assistant_text})
-                    messages.append({"role": "user", "content": "Please continue exactly from where you left off. Do not repeat anything you already said. Do not add any conversational filler. Just continue the text or code block seamlessly."})
+                    messages.append({"role": "user", "content": 'CONTINUE the document. The previous code block was temporarily closed for transmission only. Resume writing EXACTLY from the last character you produced, continuing inside the SAME markdown-canvas block. Output ONLY the next characters of the document - no explanations, no apologies, no restating instructions, no re-opening of the fence, no conversational text.'})
                     
                     continuations += 1
                     continue
@@ -476,7 +636,127 @@ class LLMGateway:
                 
         return full_content, full_thinking
 
-    def stream_chat(self, query: str, context: str, system_prompt: str | None = None, thinking_intensity: str | None = None, intent: str = "search_kb") -> Generator[str, None, None]:
+    def stream_section(self, full_document, section_index, total_sections, section_header, section_body, query, thinking_intensity=None):
+        """Stream-generate ONE section of a document rewrite.
+
+        Used by the segmented-rewrite pipeline (scheme C) to avoid the
+        continuation-leak problem entirely: each section is produced in a
+        single request that fits well within the model max_output, so no
+        continuation is ever needed.
+
+        Args:
+            full_document: The complete original document (for context).
+            section_index: 0-based index of this section.
+            total_sections: Total number of sections.
+            section_header: The heading line of this section.
+            section_body: The full text of this section (header + body).
+            query: The user instruction (e.g. translate to English).
+            thinking_intensity: low/medium/high.
+
+        Yields:
+            Token strings (the rewritten section body, NO fences).
+        """
+        if not self.client:
+            yield "Error: API not configured."
+            return
+
+        ti = (thinking_intensity or "medium").lower()
+        caps = get_capabilities(self.model, self._provider_overrides())
+        effective_max = min(self.max_tokens, caps["max_output"])
+
+        system_prompt = (
+            "You are a document editor. The user wants to apply an edit to a Markdown "
+            "document, ONE section at a time. You are given the FULL original document "
+            "for context, but you must ONLY output the rewritten version of the "
+            "specified section.\n\n"
+            f"User instruction: {query}\n\n"
+            f"This is section {section_index + 1} of {total_sections}. "
+            "Output ONLY the rewritten version of this section, starting with its "
+            "heading. Do NOT include any other section. Do NOT wrap the output in "
+            "code fences. Do NOT add explanations or conversational text. Just the "
+            "section content.\n\n"
+            "Preserve all data, numbers, and chart-config JSON exactly. Translate "
+            "only natural-language text. Keep Markdown structure intact.\n\n"
+            "FENCE PRESERVATION: Keep the EXACT fence markers from the original section. "
+            "If the original uses ~~~chart-config, output ~~~chart-config. If it uses "
+            "backticks, use backticks. Never change fence types or add extra fences."
+        )
+
+        user_msg = (
+            "--- FULL ORIGINAL DOCUMENT (for context only, do NOT reproduce it) ---\n"
+            f"{full_document}\n"
+            "--- END FULL DOCUMENT ---\n\n"
+            "--- SECTION TO REWRITE (output the rewritten version of ONLY this section) ---\n"
+            f"{section_body}\n"
+            "--- END SECTION ---"
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_msg},
+        ]
+
+        kwargs = {}
+        if caps["reasoning"]:
+            kwargs["reasoning_effort"] = ti
+            kwargs["max_completion_tokens"] = effective_max
+        else:
+            kwargs["temperature"] = self.temperature
+            kwargs["max_tokens"] = effective_max
+
+        MAX_SECTION_CONT = 3
+        section_cont = 0
+        try:
+          while True:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=True,
+                **kwargs
+            )
+            in_thinking = False
+            finish_reason = None
+            section_acc = ""
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                if hasattr(chunk.choices[0], "finish_reason") and chunk.choices[0].finish_reason:
+                    finish_reason = chunk.choices[0].finish_reason
+                delta = chunk.choices[0].delta
+                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                    if not in_thinking:
+                        yield "[THINK]"
+                        in_thinking = True
+                    yield delta.reasoning_content
+                    continue
+                text = delta.content
+                if text:
+                    if in_thinking:
+                        yield "[/THINK]"
+                        in_thinking = False
+                    section_acc += text
+                    yield text
+            if in_thinking:
+                yield "[/THINK]"
+            if finish_reason in ("length", "max_tokens") and section_cont < MAX_SECTION_CONT and section_acc:
+                section_cont += 1
+                logger.info(f"stream_section truncated, continuing section ({section_cont}/{MAX_SECTION_CONT})")
+                fence3_count = section_acc.count("```")
+                tilde3_count = section_acc.count("~~~")
+                closer = ""
+                if fence3_count % 2 != 0:
+                    closer += "\n```"
+                if tilde3_count % 2 != 0:
+                    closer += "\n~~~"
+                messages.append({"role": "assistant", "content": section_acc + closer})
+                messages.append({"role": "user", "content": "Continue this section exactly from where it stopped. The code block was temporarily closed for transmission only. Output ONLY the remaining content of this section - no other sections, no explanations, no re-opening of fences. Just the next characters."})
+                continue
+            break
+        except Exception as e:
+            logger.error(f"stream_section error: {e}")
+            yield f"Error: {e}"
+
+    def stream_chat(self, query: str, context: str, history: List[Dict[str, str]] = None, system_prompt: str | None = None, thinking_intensity: str | None = None, intent: str = "search_kb") -> Generator[str, None, None]:
         """Stream chat completion.
 
         Args:
@@ -560,23 +840,24 @@ class LLMGateway:
 
         system_prompt += cot_instruction
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
+        if history:
+            for h in history:
+                messages.append({"role": h["role"], "content": h["content"]})
+        messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"})
 
         kwargs = {}
-        is_openai_reasoning = self.model and (
-            "o1" in self.model.lower() or 
-            "o3-mini" in self.model.lower()
-        )
+        caps = get_capabilities(self.model, self._provider_overrides())
+        is_reasoning = caps["reasoning"]
+        # Never request more output tokens than the model supports.
+        effective_max = min(self.max_tokens, caps["max_output"])
 
-        if is_openai_reasoning:
+        if is_reasoning:
             kwargs["reasoning_effort"] = ti
-            kwargs["max_completion_tokens"] = self.max_tokens
+            kwargs["max_completion_tokens"] = effective_max
         else:
             kwargs["temperature"] = self.temperature
-            kwargs["max_tokens"] = self.max_tokens
+            kwargs["max_tokens"] = effective_max
 
         MAX_CONTINUATIONS = 3
         continuations = 0
@@ -614,10 +895,52 @@ class LLMGateway:
                         
                     text = delta.content
                     if text:
-                        if continuations > 0 and "```markdown" in text:
-                            # We can't easily retract streamed tokens, but we can stop the stream
-                            logger.warning("Model restarted the document instead of continuing in stream. Aborting auto-continuation.")
-                            finish_reason = "stop" # Force stop continuation
+                        # During continuation, models may leak the continuation
+                        # instruction / their own reasoning about where they left off
+                        # into the document body. Strip these leak phrases so they
+                        # do not corrupt the canvas output.
+                        if continuations > 0:
+                            import re as _re
+                            _leak_patterns = [
+                                r"The user wants me to continue.*?(?:\n|$)",
+                                r"Looking at my previous response.*?(?:\n|$)",
+                                r"Let me continue.*?(?:\n|$)",
+                                r"I need to continue.*?(?:\n|$)",
+                                r"continue from where.*?(?:\n|$)",
+                                r"where I left off.*?(?:\n|$)",
+                                r"The last text was:.*?(?:\n```|\n|$)",
+                                r"I was in the middle of.*?(?:\n|$)",
+                                r"Let me continue exactly.*?(?:\n|$)",
+                                r"resume writing.*?(?:\n|$)",
+                                r"continuing inside the SAME.*?(?:\n|$)",
+                            ]
+                            for _pat in _leak_patterns:
+                                text = _re.sub(_pat, "", text, flags=_re.IGNORECASE).strip("\n")
+                            if not text:
+                                continue
+                        # During continuation, detect if model restarts the markdown-canvas block.
+                        # Skip the repeated opening fence rather than aborting the whole continuation.
+                        if continuations > 0 and "```markdown-canvas" in text:
+                            logger.warning("Model restarted markdown-canvas in stream. Attempting to skip repeated fence.")
+                            parts = text.split("```markdown-canvas")
+                            if len(parts) > 1:
+                                text = "```markdown-canvas".join(parts[1:])
+                                if text.startswith("\r\n"):
+                                    text = text[2:]
+                                elif text.startswith("\n"):
+                                    text = text[1:]
+                                # Deduplicate overlap with accumulated_content
+                                if accumulated_content and text:
+                                    overlap = 0
+                                    max_ov = min(len(accumulated_content), len(text), 200)
+                                    for i in range(max_ov, 0, -1):
+                                        if accumulated_content.endswith(text[:i]):
+                                            overlap = i
+                                            break
+                                    if overlap > 0:
+                                        text = text[overlap:]
+                                if not text:
+                                    continue
                             
                         if in_thinking:
                             yield "\n</think>\n"
@@ -634,9 +957,16 @@ class LLMGateway:
                     if accumulated_thinking:
                         assistant_text += f"<think>\n{accumulated_thinking}\n</think>\n"
                     assistant_text += accumulated_content
+                    # Temporarily close an unclosed markdown-canvas fence so the model sees a
+                    # well-formed assistant turn. Otherwise it treats the continuation prompt as
+                    # part of the document body and leaks instruction text into the output.
+                    if "```markdown-canvas" in assistant_text:
+                        fence_count = assistant_text.count("```")
+                        if fence_count % 2 != 0:
+                            assistant_text += "\n```"
                     
                     messages.append({"role": "assistant", "content": assistant_text})
-                    messages.append({"role": "user", "content": "Please continue exactly from where you left off. Do not repeat anything you already said. Do not add any conversational filler. Just continue the text or code block seamlessly."})
+                    messages.append({"role": "user", "content": 'CONTINUE the document. The previous code block was temporarily closed for transmission only. Resume writing EXACTLY from the last character you produced, continuing inside the SAME markdown-canvas block. Output ONLY the next characters of the document - no explanations, no apologies, no restating instructions, no re-opening of the fence, no conversational text.'})
                     
                     continuations += 1
                     continue

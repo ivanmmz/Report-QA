@@ -162,7 +162,7 @@ body {
   padding: 0;
   border-radius: 0;
   font-size: 0.85em;
-  color: #fff;
+  color: var(--text0);
 }
 .markdown-content table {
   width: 100%;
@@ -189,6 +189,38 @@ body {
 }
 .markdown-content tr:hover {
   background: rgba(255, 255, 255, 0.02);
+}
+
+/* LLM Select Dropdowns and Icon Buttons styling */
+.llm-dropdown-trigger {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text1) !important;
+  transition: all 0.15s ease;
+}
+.llm-dropdown-trigger:hover {
+  background: var(--border) !important;
+  color: var(--text0) !important;
+}
+
+.llm-dropdown-option {
+  color: var(--text1) !important;
+  background: transparent !important;
+  transition: all 0.15s ease;
+}
+.llm-dropdown-option:hover {
+  background: var(--bg2) !important;
+  color: var(--text0) !important;
+}
+
+.llm-icon-btn {
+  color: var(--text1) !important;
+  background: transparent !important;
+  transition: all 0.15s ease;
+}
+.llm-icon-btn:hover {
+  background: var(--bg2) !important;
+  color: var(--text0) !important;
 }
 
 /* ─── Print Styles Chain ─── */
