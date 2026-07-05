@@ -15,7 +15,7 @@
 
 ## 🎬 演示视频 (Demo)
 
-<video src="docs/Demo.mp4" width="100%" controls></video>
+[![观看演示视频](docs/images/initial_dashboard.png)](docs/Demo.mp4)
 
 ---
 
