@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Key, Copy, Check, ShieldAlert, Cpu, Sparkles, RefreshCw } from "lucide-react";
+import { Key, Copy, Check, ShieldAlert, Cpu, Sparkles, RefreshCw, Github, Mail, Clock } from "lucide-react";
 
 interface ActivationPageProps {
   onActivated: () => void;
+  trialExpired?: boolean;
 }
 
-export default function ActivationPage({ onActivated }: ActivationPageProps) {
+export default function ActivationPage({ onActivated, trialExpired = false }: ActivationPageProps) {
   const [machineCode, setMachineCode] = useState<string>("Loading...");
   const [regCode, setRegCode] = useState<string>("");
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -84,15 +85,63 @@ export default function ActivationPage({ onActivated }: ActivationPageProps) {
           <div
             className="w-14 h-14 rounded-xl flex items-center justify-center mb-4"
             style={{
-              background: "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
-              boxShadow: "0 0 20px rgba(0, 188, 242, 0.3)",
+              background: trialExpired
+                ? "linear-gradient(135deg, #e05555 0%, #b91c1c 100%)"
+                : "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
+              boxShadow: trialExpired
+                ? "0 0 20px rgba(224,85,85,0.3)"
+                : "0 0 20px rgba(0, 188, 242, 0.3)",
             }}
           >
-            <Key className="w-6 h-6 text-white" />
+            {trialExpired ? (
+              <Clock className="w-6 h-6 text-white" />
+            ) : (
+              <Key className="w-6 h-6 text-white" />
+            )}
           </div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Software Activation</h2>
-          <p className="text-xs text-[var(--text2)] mt-1">Please enter your registration code to activate Report QA</p>
+          {trialExpired ? (
+            <>
+              <h2 className="text-xl font-bold tracking-tight text-white">Trial Period Ended</h2>
+              <p className="text-xs text-[var(--text2)] mt-1">
+                Your 90-day free trial has expired. Enter a license key below or contact us to continue.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold tracking-tight text-white">Software Activation</h2>
+              <p className="text-xs text-[var(--text2)] mt-1">Please enter your registration code to activate Report QA</p>
+            </>
+          )}
         </div>
+
+        {/* Contact info — only shown when trial has expired */}
+        {trialExpired && (
+          <div className="mb-6 p-4 rounded-xl border border-[rgba(224,85,85,0.25)] bg-[rgba(224,85,85,0.06)] space-y-3">
+            <p className="text-xs text-[var(--text2)] leading-relaxed">
+              To extend your trial or purchase a license, reach out via:
+            </p>
+            <div className="flex flex-col gap-2">
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open("https://github.com/ivanmmz/Report-QA", "_blank");
+                }}
+                className="flex items-center gap-2 text-xs text-[var(--accent)] hover:underline"
+              >
+                <Github className="w-3.5 h-3.5" />
+                github.com/ivanmmz/Report-QA
+              </a>
+              <a
+                href="mailto:imamingze@gmail.com"
+                className="flex items-center gap-2 text-xs text-[var(--accent)] hover:underline"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                imamingze@gmail.com
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Content body */}
         <div className="space-y-6 relative">

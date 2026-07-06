@@ -23,19 +23,19 @@ This application features a Microsoft Fluent Design dark theme with native-like 
 
 ### 1. Initial Dashboard
 A clean, modern Fluent Design interface. The left panel serves as the writing Canvas area, and the right panel hosts the Copilot AI assistant sidebar. The sidebar boundary is fully draggable to easily customize panel widths:
-![Initial Dashboard](docs/images/initial_dashboard.png)
+![Initial Dashboard](./docs/images/initial_dashboard.png)
 
 ### 2. AI Copilot Chat & Canvas Auto-Reconstruction
 When a query is entered (e.g., "Find the EFF data for the past 12 months"), the system executes RAG retrieval with precise source citations. If the assistant's answer includes document modifications, the Canvas dynamically renders the **12-month chiller efficiency table** and an interactive **Chart.js bar chart**:
-![Processed Preview and Success](docs/images/processed_data.png)
+![Processed Preview and Success](./docs/images/processed_data.png)
 
 ### 3. Markdown Editor & Dual-Column Sync
 Click **Edit** in the floating toolbar at the top-left of the Canvas to switch the editor to Markdown source mode. It supports raw Markdown text editing and custom `~~~chart-config` blocks for chart configurations:
-![Markdown Editor](docs/images/edit_mode.png)
+![Markdown Editor](./docs/images/edit_mode.png)
 
 ### 4. Centered Settings Panel & API Configuration
 Click the **Gear (Settings)** icon in the top-right corner to open the centered settings dialog. Easily add target document folders under the `Documents` tab, and dynamically configure providers and API keys under the `API & Models` tab (all sensitive data is saved locally):
-![Settings Dialog](docs/images/settings_dialog.png)
+![Settings Dialog](./docs/images/settings_dialog.png)
 
 ---
 
@@ -207,4 +207,4 @@ By submitting a PR, you agree to license your contributions under the same [MIT 
 
 If Report QA helped you save time and solve document search or report layout challenges, feel free to support the developer! ☕
 
-<img src="docs/images/一杯咖啡.JPG" width="280" alt="Buy Me a Coffee" />
+<img src="./docs/images/%E4%B8%80%E6%9D%AF%E5%92%96%E5%95%A1.JPG" width="280" alt="Buy Me a Coffee" />

@@ -1,6 +1,6 @@
 [package]
 name = "report-qa-tauri"
-version = "0.1.0"
+version = "1.0.1"
 description = "Report QA - RAG System with Tauri"
 authors = ["Report QA Team"]
 edition = "2021"

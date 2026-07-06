@@ -50,6 +50,8 @@ export interface LicenseInfo {
   expire_date: string;
   permanent: boolean;
   features: string[];
+  is_trial: boolean;
+  trial_days_left: number;
 }
 
 export interface ChatSession {

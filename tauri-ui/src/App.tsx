@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import MainLayout from "./components/layout/MainLayout";
 import UpdateBanner from "./components/layout/UpdateBanner";
 import ActivationPage from "./components/layout/ActivationPage";
+import TrialBanner from "./components/layout/TrialBanner";
 import { useAppStore } from "./stores/appStore";
 
 function App() {
@@ -168,7 +169,9 @@ function App() {
         edition: "Enterprise",
         expire_date: "2099-12-31",
         permanent: true,
-        features: ["PDF_EXPORT", "WORD_EXPORT", "AI", "PLUGIN"]
+        features: ["PDF_EXPORT", "WORD_EXPORT", "AI", "PLUGIN"],
+        is_trial: false,
+        trial_days_left: 0,
       });
       return;
     }
@@ -186,7 +189,9 @@ function App() {
         edition: "Trial",
         expire_date: "",
         permanent: false,
-        features: []
+        features: [],
+        is_trial: true,
+        trial_days_left: 90,
       });
     }
   };
@@ -203,13 +208,18 @@ function App() {
     );
   }
 
-  if (!licenseInfo.is_activated || licenseInfo.is_expired) {
-    return <ActivationPage onActivated={checkLicenseStatus} />;
+  // Trial expired or explicitly not activated with no remaining trial days → activation gate
+  const trialExpired = licenseInfo.is_trial && licenseInfo.trial_days_left <= 0;
+  if ((!licenseInfo.is_activated || licenseInfo.is_expired) && (!licenseInfo.is_trial || trialExpired)) {
+    return <ActivationPage onActivated={checkLicenseStatus} trialExpired={trialExpired} />;
   }
 
   return (
     <div className={isDark ? "dark" : "light"}>
       <UpdateBanner />
+      {licenseInfo.is_trial && licenseInfo.trial_days_left > 0 && (
+        <TrialBanner daysLeft={licenseInfo.trial_days_left} />
+      )}
       <MainLayout isDark={isDark} toggleTheme={toggleTheme} />
     </div>
   );

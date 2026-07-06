@@ -1048,6 +1048,17 @@ function AboutSettings() {
         </a>
       ),
     },
+    {
+      label: "Contact",
+      value: (
+        <a
+          href="mailto:imamingze@gmail.com"
+          className="text-[var(--accent)] hover:underline"
+        >
+          imamingze@gmail.com
+        </a>
+      ),
+    },
   ];
 
   const hasLicense = licenseInfo?.is_activated && !licenseInfo?.is_expired;

@@ -1,4 +1,4 @@
-﻿use std::path::PathBuf;
+use std::path::PathBuf;
 use std::process::Command;
 use sha2::{Sha256, Digest};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -73,6 +73,9 @@ pub struct LicenseInfo {
     pub expire_date: String,
     pub permanent: bool,
     pub features: Vec<String>,
+    // Trial fields (populated when is_activated == false)
+    pub is_trial: bool,
+    pub trial_days_left: i64,
 }
 
 fn get_sha256_prefix(val: &str) -> String {
@@ -235,6 +238,39 @@ fn update_last_run_time(time: u64) {
     }
 }
 
+/// Returns the number of trial days remaining for the given app version.
+/// First launch records the timestamp; subsequent calls compute days elapsed.
+/// Returns negative when expired.
+pub fn get_trial_days_left(version: &str) -> i64 {
+    const TRIAL_DAYS: i64 = 90;
+    // Sanitise version string for use as a registry value name
+    let key_name = format!("TrialStart_{}", version.replace('.', "_"));
+    let reg_path = "Software\\ReportQA\\License";
+
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let first_run: u64 = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(reg_path)
+        .ok()
+        .and_then(|k| k.get_value::<String, _>(&key_name).ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+
+    if first_run == 0 {
+        // First launch for this version — record now
+        if let Ok((k, _)) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(reg_path) {
+            let _ = k.set_value(&key_name, &now_secs.to_string());
+        }
+        return TRIAL_DAYS;
+    }
+
+    let elapsed_days = (now_secs.saturating_sub(first_run) / 86400) as i64;
+    TRIAL_DAYS - elapsed_days
+}
+
 pub fn verify_registration_code(code: &str) -> Result<LicensePayload, String> {
     let parts: Vec<&str> = code.trim().split('.').collect();
     if parts.len() != 2 {
@@ -293,8 +329,12 @@ fn parse_date_to_timestamp(d: &str) -> u64 {
 }
 
 pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
+    // Resolve app version for per-version trial tracking
+    let app_version = env!("CARGO_PKG_VERSION");
+
     let code_opt = load_registration_code(app_handle);
     if code_opt.is_none() {
+        let days_left = get_trial_days_left(app_version);
         return LicenseInfo {
             is_activated: false,
             is_expired: false,
@@ -303,6 +343,8 @@ pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
             expire_date: String::new(),
             permanent: false,
             features: vec![],
+            is_trial: true,
+            trial_days_left: days_left,
         };
     }
 
@@ -310,6 +352,7 @@ pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
     let payload = match verify_registration_code(&code) {
         Ok(p) => p,
         Err(_) => {
+            let days_left = get_trial_days_left(app_version);
             return LicenseInfo {
                 is_activated: false,
                 is_expired: false,
@@ -318,16 +361,20 @@ pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
                 expire_date: String::new(),
                 permanent: false,
                 features: vec![],
+                is_trial: true,
+                trial_days_left: days_left,
             };
         }
     };
 
     if payload.product_id != "REPORT_QA" {
-        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![] };
+        let days_left = get_trial_days_left(app_version);
+        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![], is_trial: true, trial_days_left: days_left };
     }
 
     if !verify_hardware(&payload.fingerprints) {
-        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![] };
+        let days_left = get_trial_days_left(app_version);
+        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![], is_trial: true, trial_days_left: days_left };
     }
 
     let current_utc = std::time::SystemTime::now()
@@ -337,7 +384,8 @@ pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
 
     let last_run = get_last_run_time(app_handle);
     if current_utc < last_run {
-        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![] };
+        let days_left = get_trial_days_left(app_version);
+        return LicenseInfo { is_activated: false, is_expired: false, license_id: String::new(), edition: "Trial".to_string(), expire_date: String::new(), permanent: false, features: vec![], is_trial: true, trial_days_left: days_left };
     }
     update_last_run_time(current_utc);
 
@@ -356,6 +404,8 @@ pub fn check_license_status(app_handle: &tauri::AppHandle) -> LicenseInfo {
         expire_date: payload.expire_date,
         permanent: payload.permanent,
         features: payload.features,
+        is_trial: false,
+        trial_days_left: 0,
     }
 }
 
