@@ -207,4 +207,4 @@ Report QA/
 
 如果您觉得 Report QA 帮您节省了时间、解决了数据检索和报告重构难题，欢迎请开发者喝杯咖啡，支持持续的开发和维护！☕
 
-<img src="./docs/images/%E4%B8%80%E6%9D%AF%E5%92%96%E5%95%A1.JPG" width="280" alt="请喝咖啡" />
+<img src="./docs/images/buy_me_a_coffee.JPG" width="280" alt="请喝咖啡" />

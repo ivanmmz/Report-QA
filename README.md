@@ -207,4 +207,4 @@ By submitting a PR, you agree to license your contributions under the same [MIT 
 
 If Report QA helped you save time and solve document search or report layout challenges, feel free to support the developer! ☕
 
-<img src="./docs/images/%E4%B8%80%E6%9D%AF%E5%92%96%E5%95%A1.JPG" width="280" alt="Buy Me a Coffee" />
+<img src="./docs/images/buy_me_a_coffee.JPG" width="280" alt="Buy Me a Coffee" />
