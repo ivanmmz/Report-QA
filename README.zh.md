@@ -23,19 +23,19 @@
 
 ### 1. 软件初始主界面
 简洁美观的微软 Fluent Design 界面，左侧为画板展示区域，右侧为 Copilot AI 侧边助手，支持侧边栏宽度自由拖拽改变大小：
-![初始界面](../docs/images/initial_dashboard.png)
+![初始界面](docs/images/initial_dashboard.png)
 
 ### 2. AI Copilot 问答与 Canvas 自动重构
 当向 Copilot 提问（如“找出过去12个月的eff数据”）时，系统自动执行 RAG 检索并给出精确的文档来源引用。若 AI 的回答中包含对报告的改进建议，Canvas 画板会动态渲染出完整的 **12个月能效数据表格** 和交互式 **Chart.js 趋势图表**：
-![数据与图表预览](../docs/images/processed_data.png)
+![数据与图表预览](docs/images/processed_data.png)
 
 ### 3. Markdown 编辑与双端同步
 点击画板左上角浮动工具栏的 **Edit** 按钮，即可切换至 Markdown 源码编辑模式，支持编写标准 Markdown 文本与 `~~~chart-config` 格式的图表配置：
-![Markdown 编辑模式](../docs/images/edit_mode.png)
+![Markdown 编辑模式](docs/images/edit_mode.png)
 
 ### 4. 居中设置面板与 API 配置
 点击右上角的 **Gear (设置)** 按钮，可唤出全局屏幕居中对齐的设置弹窗。支持在 `Documents` 选项卡添加监控文件夹，在 `API & Models` 选项卡中动态添加、修改 providers 和 API 密钥（敏感信息全部安全存储于本地）：
-![设置面板](../docs/images/settings_dialog.png)
+![设置面板](docs/images/settings_dialog.png)
 
 ---
 
@@ -207,4 +207,4 @@ Report QA/
 
 如果您觉得 Report QA 帮您节省了时间、解决了数据检索和报告重构难题，欢迎请开发者喝杯咖啡，支持持续的开发和维护！☕
 
-<img src="../docs/images/buy_me_a_coffee.JPG" width="280" alt="请喝咖啡" />
+<img src="docs/images/buy_me_a_coffee.JPG" width="280" alt="请喝咖啡" />
